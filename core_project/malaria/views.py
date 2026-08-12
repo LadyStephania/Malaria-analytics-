@@ -263,6 +263,18 @@ def dashboard_view(request):
     )
     trend_rows.reverse()
 
+    # Some imports (e.g. annual NMEC/DHIS2 exports) carry no real intra-year
+    # granularity — every record lands on the same placeholder epi_week. Labeling
+    # those points "W1, W1, W1..." would imply a weekly resolution the data doesn't
+    # have, so detect that case and label by year instead.
+    is_annual_cadence = len({r['epi_week'] for r in trend_rows}) <= 1
+    if is_annual_cadence:
+        trend_labels = [str(r['reporting_year']) for r in trend_rows]
+        trend_title = 'Year-over-Year Confirmed Case Trend'
+    else:
+        trend_labels = [f"W{r['epi_week']}" for r in trend_rows]
+        trend_title = 'Recent Confirmed Case Trend (by Epi Week)'
+
     context = {
         'total_suspected': total_suspected,
         'confirmed_rdt': total_confirmed,
@@ -273,8 +285,9 @@ def dashboard_view(request):
         'latest_date': totals['latest_date'],
         'map_points': map_points,
         'map_points_json': json.dumps(map_points),
-        'trend_labels_json': json.dumps([f"W{r['epi_week']}" for r in trend_rows]),
+        'trend_labels_json': json.dumps(trend_labels),
         'trend_cases_json': json.dumps([r['cases'] or 0 for r in trend_rows]),
+        'trend_title': trend_title,
     }
     return render(request, 'dashboard.html', context)
 
@@ -283,6 +296,10 @@ _DRIVER_FIELDS = {
     'rainfall': ('rainfall_mm', 'Rainfall (mm)', '#0d6efd'),
     'temperature': ('avg_temperature_c', 'Avg. Temperature (°C)', '#f59e0b'),
 }
+# Model-field defaults (models.py) stamped onto any row whose import didn't supply
+# real weather — e.g. the NMEC/DHIS2 case-only CSV. Used below to detect when the
+# correlation sample is dominated by placeholder values rather than real readings.
+_DRIVER_DEFAULTS = {'rainfall_mm': 0.0, 'avg_temperature_c': 25.0}
 
 @login_required
 def analytics_view(request):
@@ -318,6 +335,21 @@ def analytics_view(request):
     r_value = _pearson_r(lagged_driver, lagged_cases)
     p_value = _p_value_from_r(r_value, len(lagged_driver))
 
+    # Some imports (e.g. the NMEC/DHIS2 annual export) never carry real weather
+    # figures — rainfall_mm/avg_temperature_c are left at their model defaults for
+    # every row. A fully-constant driver is uncomputable in principle (zero
+    # variance). But a *mixed* database — some rows with real readings, most
+    # stamped with the placeholder default from a case-only import — still shows
+    # nonzero variance and produces a plausible-looking r/p, even though the result
+    # is mostly noise from the placeholder rows diluting a small pocket of real
+    # data. So flag on the placeholder share of the actual correlated sample, not
+    # just on whether any variance exists at all.
+    driver_default = _DRIVER_DEFAULTS.get(driver_field)
+    weather_unavailable = len(lagged_driver) >= 2 and len(set(lagged_driver)) <= 1
+    placeholder_count = sum(1 for v in lagged_driver if v == driver_default)
+    placeholder_fraction = placeholder_count / len(lagged_driver) if lagged_driver else 0
+    weather_mostly_placeholder = not weather_unavailable and placeholder_fraction >= 0.5
+
     # Most recent 12 reported weeks, aggregated nationally, for the overlay chart.
     weekly_rows = list(
         IntegratedMalariaData.objects
@@ -338,6 +370,9 @@ def analytics_view(request):
         'lag_options': range(1, 7),
         'sample_size': len(lagged_driver),
         'has_data': len(lagged_driver) >= 4,
+        'weather_unavailable': weather_unavailable,
+        'weather_mostly_placeholder': weather_mostly_placeholder,
+        'placeholder_pct': round(placeholder_fraction * 100),
         'chart_labels_json': json.dumps([f"W{r['epi_week']}" for r in weekly_rows]),
         'chart_driver_json': json.dumps([round(r['driver_avg'] or 0, 1) for r in weekly_rows]),
         'chart_cases_json': json.dumps([r['cases'] or 0 for r in weekly_rows]),

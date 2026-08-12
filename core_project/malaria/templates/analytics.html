@@ -7,7 +7,25 @@
     <p class="text-muted small mb-0">Cross-referencing secondary epidemiological records with localized multi-week environmental parameters.</p>
 </div>
 
-{% if not has_data %}
+{% if weather_unavailable %}
+<div class="alert alert-danger border-0 rounded-3 mb-4">
+    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+    <strong>This correlation can't be computed for your current data.</strong> The uploaded records don't carry real
+    rainfall/temperature figures — every row is sitting at the database default, with no variation for cases to
+    correlate against. This isn't a "not enough data yet" situation; it means the source import (e.g. an annual
+    NMEC/DHIS2 export) never included weather columns. The numbers below are not meaningful until a data source
+    with real historical rainfall/temperature per reporting period is uploaded.
+</div>
+{% elif weather_mostly_placeholder %}
+<div class="alert alert-warning border-0 rounded-3 mb-4">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>Treat this correlation with caution.</strong> About {{ placeholder_pct }}% of the records behind this
+    number carry a placeholder weather value rather than a real reading — likely from a case-only import (e.g. an
+    annual NMEC/DHIS2 export) mixed in alongside data that does have real rainfall/temperature. The r/p-value below
+    are real computations, but they're diluted by that placeholder share and shouldn't be treated as a reliable
+    read on the weather–case relationship.
+</div>
+{% elif not has_data %}
 <div class="alert alert-warning border-0 rounded-3 mb-4">
     <i class="bi bi-info-circle-fill me-1"></i>
     Not enough surveillance records yet to compute a reliable correlation. Upload historical data via
@@ -43,9 +61,9 @@
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Pearson Correlation (R)</span>
                 <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ correlation_r }}</h3>
             </div>
-            <div class="mt-3 small text-success fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small {% if weather_unavailable %}text-danger{% else %}text-success{% endif %} fw-semibold d-flex align-items-center gap-1">
                 <i class="bi bi-graph-up-arrow"></i>
-                {% if has_data %}{{ driver_label }} lagged {{ lag_weeks }} week{{ lag_weeks|pluralize }} vs. RDT cases ({{ sample_size }} obs.){% else %}Awaiting uploaded surveillance data{% endif %}
+                {% if weather_unavailable %}No real weather variation in this dataset{% elif has_data %}{{ driver_label }} lagged {{ lag_weeks }} week{{ lag_weeks|pluralize }} vs. RDT cases ({{ sample_size }} obs.){% else %}Awaiting uploaded surveillance data{% endif %}
             </div>
         </div>
     </div>
