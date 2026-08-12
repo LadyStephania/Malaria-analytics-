@@ -169,6 +169,24 @@
     </div>
 </div>
 
+{% if history_count > 1 %}
+<div class="premium-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-graph-up text-primary"></i> Full Reporting History — {{ target_label }}
+        </h5>
+        <span class="badge bg-light text-secondary border p-2 fw-medium">{{ history_count }} Period{{ history_count|pluralize }} on Record</span>
+    </div>
+    <div style="position: relative; height: 260px; width: 100%;">
+        <canvas id="districtHistoryChart"></canvas>
+    </div>
+    <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
+        Every reporting period on file for {{ target_label }}, oldest to newest — annual imports are labeled by year,
+        weekly reports by epi week, since a single district can carry both.
+    </p>
+</div>
+{% endif %}
+
 {% if forecast_preview %}
 <div class="premium-card mb-4">
     <h6 class="fw-bold text-dark mb-2" style="font-size: 0.85rem;"><i class="bi bi-cloud-sun-fill text-primary me-1"></i>Next 7 Days — {{ target_label }}</h6>
@@ -250,5 +268,47 @@
         </div>
     </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if history_count > 1 %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const ctx = document.getElementById('districtHistoryChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ history_labels_json|safe }},
+            datasets: [
+                {
+                    label: 'Confirmed Cases (RDT)',
+                    data: {{ history_confirmed_json|safe }},
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.06)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: 'Suspected Cases',
+                    data: {{ history_suspected_json|safe }},
+                    borderColor: '#94a3b8',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderDash: [5, 4],
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
+            scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
+        }
+    });
+});
+</script>
 {% endif %}
 {% endblock %}

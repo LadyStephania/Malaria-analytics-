@@ -130,7 +130,7 @@
             {% if map_points %}
             <div style="max-height: 300px; overflow-y: auto;">
                 {% for point in map_points %}
-                <div class="d-flex align-items-center justify-content-between py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                <a href="{% url 'decision' %}?district_id={{ point.id }}" class="d-flex align-items-center justify-content-between py-2 text-decoration-none {% if not forloop.last %}border-bottom{% endif %}" title="View {{ point.name }}'s full history in Decision Support">
                     <div class="d-flex align-items-center gap-2">
                         <span class="rounded-circle d-inline-block" style="width:10px; height:10px; background-color: {{ point.color }};"></span>
                         <span class="small fw-semibold text-dark">{{ point.name }}</span>
@@ -140,7 +140,7 @@
                     {% else %}
                     <span class="badge bg-light text-dark border" title="Population not on file — raw count shown">{{ point.cases }} cases</span>
                     {% endif %}
-                </div>
+                </a>
                 {% endfor %}
             </div>
             <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
@@ -173,6 +173,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     // ---- Leaflet Hotspot Map ----
     const mapPoints = {{ map_points_json|safe }};
+    const decisionSupportUrl = "{% url 'decision' %}";
     const map = L.map('malariaHotspotMap').setView([-13.13, 27.85], 6); // Zambia centroid
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -202,7 +203,8 @@ document.addEventListener("DOMContentLoaded", function () {
             'Confirmed (RDT): ' + point.cases + '<br>' +
             'Suspected: ' + point.suspected + '<br>' +
             incidenceLine +
-            'Risk tier: ' + point.risk
+            'Risk tier: ' + point.risk + '<br>' +
+            '<a href="' + decisionSupportUrl + '?district_id=' + point.id + '">View full history &rarr;</a>'
         );
     });
 

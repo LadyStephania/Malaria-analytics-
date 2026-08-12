@@ -210,7 +210,7 @@ def dashboard_view(request):
     # headline stat and the Leaflet hotspot map.
     district_rollup = (
         IntegratedMalariaData.objects
-        .values('district__name', 'district__latitude', 'district__longitude', 'district__population')
+        .values('district_id', 'district__name', 'district__latitude', 'district__longitude', 'district__population')
         .annotate(
             cases=Sum('rdt_confirmations'),
             suspected=Sum('suspected_cases'),
@@ -233,6 +233,7 @@ def dashboard_view(request):
         marker_color = _BADGE_COLOR[badge]
 
         point = {
+            'id': row['district_id'],
             'name': row['district__name'],
             'lat': row['district__latitude'],
             'lon': row['district__longitude'],
@@ -408,6 +409,36 @@ def _recent_case_burden(district):
     return recent_cases, prior_cases, reference_date, len(current_window), burden_label, burden_badge, incidence
 
 
+def _district_history(district):
+    """
+    Full reporting history for one district, oldest -> newest — every period on
+    record, not just the rolling burden window above — for the per-district trend
+    chart. Labels adapt per point: a record sitting on the epi_week=1 placeholder
+    (e.g. an annual NMEC/DHIS2 import with no real week) is labeled by year alone;
+    a record with real week granularity is labeled "W<n> '<yy>". A single district
+    can carry both kinds side by side (e.g. annual history backfilled behind more
+    recent weekly reporting), so the label is decided per-record, not per-dataset.
+    """
+    records = list(
+        IntegratedMalariaData.objects
+        .filter(district=district)
+        .order_by('date')
+        .values('date', 'epi_week', 'reporting_year', 'suspected_cases', 'rdt_confirmations')
+    )
+    labels = []
+    for r in records:
+        if r['epi_week'] == 1 and r['date'].month == 1 and r['date'].day == 1:
+            labels.append(str(r['reporting_year']))
+        else:
+            labels.append(f"W{r['epi_week']} '{str(r['reporting_year'])[-2:]}")
+    return {
+        'labels': labels,
+        'suspected': [r['suspected_cases'] for r in records],
+        'confirmed': [r['rdt_confirmations'] for r in records],
+        'count': len(records),
+    }
+
+
 def _district_priority_queue():
     """
     Ranks every district that has case data by combined urgency — the SAME
@@ -487,6 +518,7 @@ def decision_view(request):
         })
 
     target_label = selected_district.name
+    history = _district_history(selected_district)
 
     # Case burden over a rolling window (not a single latest date — see
     # _recent_case_burden's docstring); same helper the priority queue uses above,
@@ -587,6 +619,10 @@ def decision_view(request):
         'forecast_preview': forecast_days[:7] if forecast_days else [],
         'danger_days_7': danger_days_7,
         'warning_days_7': forecast_summary['warning_days_7'] if forecast_summary else 0,
+        'history_count': history['count'],
+        'history_labels_json': json.dumps(history['labels']),
+        'history_suspected_json': json.dumps(history['suspected']),
+        'history_confirmed_json': json.dumps(history['confirmed']),
     }
     return render(request, 'decision.html', context)
 
