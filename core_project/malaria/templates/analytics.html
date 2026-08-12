@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}Analytics | Malaria Insights{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <span class="text-primary fw-bold text-uppercase small" style="font-size: 0.8rem; letter-spacing: 0.05em;">Statistical Modeling Core</span>
+    <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.5px;">Climate Correlation Matrix</h2>
+    <p class="text-muted small mb-0">Cross-referencing secondary epidemiological records with localized multi-week environmental parameters.</p>
+</div>
+
+{% if not has_data %}
+<div class="alert alert-warning border-0 rounded-3 mb-4">
+    <i class="bi bi-info-circle-fill me-1"></i>
+    Not enough surveillance records yet to compute a reliable correlation. Upload historical data via
+    <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to populate this view.
+</div>
+{% endif %}
+
+<!-- Driver + Lag Controls -->
+<form method="get" class="premium-card d-flex flex-wrap align-items-center gap-3 mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Environmental Driver</label>
+        <select name="driver" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            <option value="rainfall" {% if driver == 'rainfall' %}selected{% endif %}>Rainfall</option>
+            <option value="temperature" {% if driver == 'temperature' %}selected{% endif %}>Temperature</option>
+        </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Lag Window</label>
+        <select name="lag" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            {% for n in lag_options %}
+            <option value="{{ n }}" {% if n == lag_weeks %}selected{% endif %}>{{ n }} week{{ n|pluralize }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <span class="text-muted small ms-auto"><i class="bi bi-info-circle me-1"></i>Recomputes the correlation below against the selected driver and lag.</span>
+</form>
+
+<!-- Side-by-Side Summary Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 d-flex flex-column justify-content-between">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Pearson Correlation (R)</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ correlation_r }}</h3>
+            </div>
+            <div class="mt-3 small text-success fw-semibold d-flex align-items-center gap-1">
+                <i class="bi bi-graph-up-arrow"></i>
+                {% if has_data %}{{ driver_label }} lagged {{ lag_weeks }} week{{ lag_weeks|pluralize }} vs. RDT cases ({{ sample_size }} obs.){% else %}Awaiting uploaded surveillance data{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 d-flex flex-column justify-content-between">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Significance P-Value</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ p_value }}</h3>
+            </div>
+            <div class="mt-3 small {% if is_significant %}text-primary{% else %}text-muted{% endif %} fw-semibold d-flex align-items-center gap-1">
+                <i class="bi bi-check-circle-fill"></i>
+                {% if is_significant %}Statistically Significant (p &lt; 0.05){% else %}Not Yet Statistically Significant{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 d-flex flex-column justify-content-between">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Applied Lag Window</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ lag_weeks }} Week{{ lag_weeks|pluralize }}</h3>
+            </div>
+            <div class="mt-3 small text-warning fw-semibold d-flex align-items-center gap-1">
+                <i class="bi bi-clock-history"></i>
+                Time offset between {{ driver_label|lower }} and observed cases
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interactive Chart Container -->
+<div class="premium-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-activity text-primary"></i>
+            Epidemiological & Environmental Overlay
+        </h5>
+        <span class="badge bg-light text-secondary border p-2 fw-medium">Weekly Time-Series Graph</span>
+    </div>
+    <div style="position: relative; height: 320px; width: 100%;">
+        <canvas id="timeLagCorrelationChart"></canvas>
+    </div>
+</div>
+
+<!-- Technical Summary -->
+<div class="premium-card">
+    <h5 class="fw-bold text-secondary mb-2" style="font-size: 1rem;">Model Methodology</h5>
+    <p class="text-muted small mb-0" style="line-height: 1.6;">
+        This view computes a <strong>Pearson correlation coefficient (r)</strong> between the selected environmental
+        driver and RDT-confirmed case counts, offset by the chosen lag window to approximate the mosquito
+        breeding-to-clinical-presentation delay. Statistical significance is estimated via a
+        <strong>Fisher z-transformation</strong> of r, converted to a two-tailed p-value against the sample size shown
+        above. Adjust the driver and lag controls to explore how the relationship shifts across different
+        environmental variables and time offsets.
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const chartElement = document.getElementById('timeLagCorrelationChart');
+    const ctx = chartElement.getContext('2d');
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels_json|safe }},
+            datasets: [
+                {
+                    label: '{{ driver_label|escapejs }}',
+                    data: {{ chart_driver_json|safe }},
+                    borderColor: '{{ driver_color }}',
+                    backgroundColor: 'rgba(13, 110, 253, 0.04)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    yAxisID: 'yWeather',
+                    fill: true
+                },
+                {
+                    label: 'Confirmed Malaria Cases (RDT)',
+                    data: {{ chart_cases_json|safe }},
+                    borderColor: '#dc3545',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    yAxisID: 'yEpidemiology'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { font: { family: 'Inter', weight: '600' } }
+                }
+            },
+            scales: {
+                yWeather: {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: '{{ driver_label|escapejs }}', color: '{{ driver_color }}', font: { weight: 'bold', family: 'Inter' } },
+                    grid: { color: '#f1f5f9' }
+                },
+                yEpidemiology: {
+                    type: 'linear',
+                    position: 'right',
+                    title: { display: true, text: 'Clinical Malaria Case Tally', color: '#dc3545', font: { weight: 'bold', family: 'Inter' } },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

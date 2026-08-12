@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard | Malaria Insights{% endblock %}
+{% block content %}
+<style>
+    #malariaHotspotMap {
+        width: 100%;
+        height: 380px;
+        border-radius: 12px;
+        border: 1px solid var(--border, #e2e8f0);
+        z-index: 1;
+    }
+    .icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    .map-wrap { position: relative; }
+    .map-legend {
+        position: absolute; bottom: 12px; left: 12px; z-index: 400;
+        background: rgba(255,255,255,0.95); border: 1px solid var(--border, #e2e8f0);
+        border-radius: 10px; padding: 10px 14px; font-size: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .map-legend .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+</style>
+
+<div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+        <span class="text-primary fw-bold text-uppercase small" style="font-size: 0.8rem; letter-spacing: 0.05em;">Operational Context Panel</span>
+        <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.5px;">National Surveillance Overview</h2>
+        <p class="text-muted small mb-0">Active authorized authentication context: <strong class="text-primary">{{ active_user_role }}</strong></p>
+    </div>
+    {% if latest_date %}
+    <span class="badge bg-light text-secondary border p-2 fw-medium">
+        <i class="bi bi-clock-history me-1"></i>Data current as of {{ latest_date }}
+    </span>
+    {% endif %}
+</div>
+
+{% if not has_data %}
+<div class="alert alert-warning border-0 rounded-3 mb-4">
+    <i class="bi bi-info-circle-fill me-1"></i>
+    No surveillance records have been ingested yet. Head to <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to populate the dashboard.
+</div>
+{% endif %}
+
+<!-- Row 1: Summary Aggregation Metric Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-3">
+        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Total Suspected Cases</span>
+                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ total_suspected }}</h2>
+                <span class="text-muted small" style="font-size: 0.78rem;">Cumulative Outpatient Registry</span>
+            </div>
+            <div class="icon-box bg-primary bg-opacity-10 text-primary">🤒</div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-3">
+        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">RDT Confirmations Tally</span>
+                <h2 class="fw-bold mb-0 text-primary" style="font-size: 2rem; letter-spacing: -0.5px;">{{ confirmed_rdt }}</h2>
+                <span class="text-success small fw-semibold" style="font-size: 0.78rem;"><i class="bi bi-shield-fill-plus me-0.5"></i>Verified Positives</span>
+            </div>
+            <div class="icon-box bg-success bg-opacity-10 text-success">🩸</div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-3">
+        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate</span>
+                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ positivity_rate }}%</h2>
+                <span class="text-muted small" style="font-size: 0.78rem;">RDT Confirmed ÷ Suspected</span>
+            </div>
+            <div class="icon-box bg-info bg-opacity-10 text-info">📊</div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-3">
+        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100" style="border-left: 4px solid #dc3545;">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Outbreak Critical Node</span>
+                <h2 class="fw-bold mb-0 text-danger" style="font-size: 1.5rem; letter-spacing: -0.5px;">{{ alert_district }}</h2>
+                <span class="text-danger small fw-semibold" style="font-size: 0.78rem;"><i class="bi bi-exclamation-triangle-fill me-0.5"></i>Highest Confirmed Load</span>
+            </div>
+            <div class="icon-box bg-danger bg-opacity-10 text-danger">🚨</div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Two-Column Map Layout Grid Component -->
+<div class="row g-4">
+    <!-- Map Left Block Card -->
+    <div class="col-12 col-xl-8">
+        <div class="premium-card mb-0">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-map-fill text-primary"></i> Localized Risk Hotspot Mapping
+                </h5>
+                <span class="badge bg-light text-secondary border p-2 fw-medium">{{ map_points|length }} District{{ map_points|length|pluralize }} Reporting</span>
+            </div>
+            <div class="map-wrap">
+                <div id="malariaHotspotMap"></div>
+                <div class="map-legend">
+                    <div class="fw-bold text-uppercase mb-1" style="font-size: 0.68rem; color: var(--muted, #64748b);">Burden Tier</div>
+                    <div><span class="swatch" style="background:#dc3545;"></span>High</div>
+                    <div><span class="swatch" style="background:#f59e0b;"></span>Moderate</div>
+                    <div><span class="swatch" style="background:#16a34a;"></span>Low</div>
+                    <div class="text-muted mt-1" style="font-size: 0.65rem; max-width: 200px;">
+                        Cases per 10,000 population where known (≥50 high, ≥15 moderate); raw case count otherwise.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Side Summary Context Block -->
+    <div class="col-12 col-xl-4">
+        <div class="premium-card h-100 mb-0">
+            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-list-ol text-primary"></i> District Hotspot Ranking
+            </h5>
+            {% if map_points %}
+            <div style="max-height: 300px; overflow-y: auto;">
+                {% for point in map_points %}
+                <div class="d-flex align-items-center justify-content-between py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="rounded-circle d-inline-block" style="width:10px; height:10px; background-color: {{ point.color }};"></span>
+                        <span class="small fw-semibold text-dark">{{ point.name }}</span>
+                    </div>
+                    {% if point.incidence_per_10k is not None %}
+                    <span class="badge bg-light text-dark border" title="{{ point.cases }} cases / {{ point.population }} population">{{ point.incidence_per_10k }} /10k</span>
+                    {% else %}
+                    <span class="badge bg-light text-dark border" title="Population not on file — raw count shown">{{ point.cases }} cases</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
+                Ranked by cases per 10,000 population where known; districts without a population on file are ranked by raw case count and listed last.
+            </p>
+            {% else %}
+            <p class="text-muted small mb-0">No district-level records yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: Recent Trend Strip -->
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="premium-card mb-0">
+            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-graph-up text-primary"></i> Recent Confirmed Case Trend
+            </h5>
+            <div style="position: relative; height: 220px; width: 100%;">
+                <canvas id="caseTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // ---- Leaflet Hotspot Map ----
+    const mapPoints = {{ map_points_json|safe }};
+    const map = L.map('malariaHotspotMap').setView([-13.13, 27.85], 6); // Zambia centroid
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    mapPoints.forEach(function (point) {
+        if (point.lat == null || point.lon == null) return;
+        // Marker size follows incidence rate when population is known (the epidemiologically
+        // meaningful measure); falls back to raw case count for districts without population data.
+        const sizeMetric = point.incidence_per_10k != null ? point.incidence_per_10k : point.cases;
+        const radius = Math.max(8, Math.min(30, Math.sqrt(sizeMetric || 1) * 3));
+        const incidenceLine = point.incidence_per_10k != null
+            ? 'Incidence: ' + point.incidence_per_10k + ' per 10,000 (pop. ' + point.population.toLocaleString() + ')<br>'
+            : 'Population not on file (raw count shown)<br>';
+        L.circleMarker([point.lat, point.lon], {
+            radius: radius,
+            color: point.color,
+            fillColor: point.color,
+            fillOpacity: 0.55,
+            weight: 2
+        })
+        .addTo(map)
+        .bindPopup(
+            '<strong>' + point.name + '</strong><br>' +
+            'Confirmed (RDT): ' + point.cases + '<br>' +
+            'Suspected: ' + point.suspected + '<br>' +
+            incidenceLine +
+            'Risk tier: ' + point.risk
+        );
+    });
+
+    // ---- Recent Case Trend Chart ----
+    const trendCtx = document.getElementById('caseTrendChart').getContext('2d');
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: {{ trend_labels_json|safe }},
+            datasets: [{
+                label: 'Confirmed Cases (RDT)',
+                data: {{ trend_cases_json|safe }},
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.06)',
+                borderWidth: 3,
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
+            scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
+        }
+    });
+});
+</script>
+{% endblock %}

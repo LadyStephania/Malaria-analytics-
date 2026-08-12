@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"c:\\\\Users\\\\stephania.bwalya\\\\Desktop\\\\Malaria\\\\venv\\\\Scripts\\\\pip.exe\" install -r \"c:\\\\Users\\\\stephania.bwalya\\\\Desktop\\\\Malaria\\\\requirements.txt\")",
+      "PowerShell(& \"c:\\\\Users\\\\stephania.bwalya\\\\Desktop\\\\Malaria\\\\venv\\\\Scripts\\\\python.exe\" \"c:\\\\Users\\\\stephania.bwalya\\\\Desktop\\\\Malaria\\\\core_project\\\\manage.py\" shell -c \"from malaria.models import SystemUser; [print\\(u.username, '|', u.role, '|', 'superuser' if u.is_superuser else ''\\) for u in SystemUser.objects.all\\(\\)]\")"
+    ]
+  }
+}

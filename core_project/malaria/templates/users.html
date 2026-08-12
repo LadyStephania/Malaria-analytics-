@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Users | Malaria Insights{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <span class="text-primary fw-bold text-uppercase small">Access Control Panel</span>
+    <h2 class="fw-bold text-dark m-0">Personnel Identity Management</h2>
+</div>
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="premium-card">
+            <h5 class="fw-bold mb-3"><i class="bi bi-person-plus-fill text-primary me-2"></i>Provision New Profile Account</h5>
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="form_action" value="create">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted" for="newUsername">User Handle</label>
+                    <input type="text" id="newUsername" name="new_username" class="form-control" placeholder="e.g. j_bwalya" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted" for="newRole">Assign Architecture Role</label>
+                    <select id="newRole" name="new_role" class="form-select">
+                        <option value="CLERK">Data Entry Clerk</option>
+                        <option value="EPIDEMIOLOGIST">Public Health Epidemiologist</option>
+                        <option value="ADMIN">System Administrator</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted" for="newDistrict">District Assignment (optional)</label>
+                    <input type="text" id="newDistrict" name="new_district" class="form-control" placeholder="e.g. Chadiza">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted" for="newPassword">Temporary Password</label>
+                    <input type="password" id="newPassword" name="new_password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted" for="newPasswordConfirm">Confirm Password</label>
+                    <input type="password" id="newPasswordConfirm" name="new_password_confirm" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Authorize and Save Profile</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="premium-card p-0 overflow-hidden">
+            <div class="p-3 bg-light border-bottom fw-bold text-dark">Active Authorized Registry</div>
+            <div class="table-responsive">
+                <table class="table align-middle m-0" style="font-size:0.9rem;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Username Handle</th>
+                            <th>System Role Assignment</th>
+                            <th>District</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in system_users %}
+                        <tr>
+                            <td><strong>{{ u.username }}</strong></td>
+                            <td><span class="badge bg-secondary p-2">{{ u.get_role_display }}</span></td>
+                            <td class="text-muted">{{ u.district_assignment|default:"—" }}</td>
+                            <td>
+                                {% if u.is_active %}
+                                <span class="text-success small fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                {% else %}
+                                <span class="text-danger small fw-bold"><i class="bi bi-slash-circle-fill me-1"></i>Deactivated</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex justify-content-end gap-1 flex-wrap">
+                                    {% if u != request.user %}
+                                    <form method="POST" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="form_action" value="toggle">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button type="submit" class="btn btn-sm {% if u.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                                            {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#resetPw{{ u.id }}">
+                                        Reset Password
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small fst-italic">This is you</span>
+                                    {% endif %}
+                                </div>
+                                {% if u != request.user %}
+                                <div class="collapse mt-2" id="resetPw{{ u.id }}">
+                                    <form method="POST" class="d-flex gap-1 justify-content-end">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="form_action" value="reset_password">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <input type="password" name="reset_new_password" class="form-control form-control-sm" placeholder="New password" required style="max-width: 160px;">
+                                        <button type="submit" class="btn btn-sm btn-primary">Set</button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
