@@ -9,26 +9,24 @@
 {% if weather_unavailable %}
 <div class="alert alert-danger border-0 rounded-3 mb-4">
     <i class="bi bi-exclamation-octagon-fill me-1"></i>
-    <strong>This correlation can't be computed for your current data.</strong> The uploaded records don't carry real
-    rainfall/temperature figures — every row is sitting at the database default, with no variation for cases to
-    correlate against. This isn't a "not enough data yet" situation; it means the source import (e.g. an annual
-    NMEC/DHIS2 export) never included weather columns. The numbers below are not meaningful until a data source
-    with real historical rainfall/temperature per reporting period is uploaded.
+    <strong>We can't check this yet.</strong> The uploaded data doesn't include real rainfall or temperature
+    numbers — every record has the same placeholder value, so there's nothing to compare confirmed cases against.
+    This isn't a "not enough data" problem — it means whatever file was uploaded never had weather numbers in it
+    to begin with. This page will work once real rainfall/temperature figures are uploaded for each period.
 </div>
 {% elif weather_mostly_placeholder %}
 <div class="alert alert-warning border-0 rounded-3 mb-4">
     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-    <strong>Treat this correlation with caution.</strong> About {{ placeholder_pct }}% of the records behind this
-    number carry a placeholder weather value rather than a real reading — likely from a case-only import (e.g. an
-    annual NMEC/DHIS2 export) mixed in alongside data that does have real rainfall/temperature. The r/p-value below
-    are real computations, but they're diluted by that placeholder share and shouldn't be treated as a reliable
-    read on the weather–case relationship.
+    <strong>Take the result below with caution.</strong> About {{ placeholder_pct }}% of the records used here
+    don't have a real rainfall/temperature reading — just a placeholder value standing in for missing data. The
+    result is still a real calculation, but it's watered down by that missing data, so treat it as a rough hint
+    rather than a solid conclusion.
 </div>
 {% elif not has_data %}
 <div class="alert alert-warning border-0 rounded-3 mb-4">
     <i class="bi bi-info-circle-fill me-1"></i>
-    Not enough surveillance records yet to compute a reliable correlation. Upload historical data via
-    <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to populate this view.
+    Not enough historical data yet to check this reliably. Upload more records via
+    <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to see a result here.
 </div>
 {% endif %}
 
@@ -79,7 +77,7 @@
             </div>
             <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-graph-up-arrow"></i>
-                {% if weather_unavailable %}No real weather variation in this dataset{% elif has_data %}r = {{ correlation_r }} ({{ sample_size }} data points){% else %}Awaiting uploaded surveillance data{% endif %}
+                {% if weather_unavailable %}No real weather variation in this dataset{% elif has_data %}Based on {{ sample_size }} reporting periods{% else %}Awaiting uploaded surveillance data{% endif %}
             </div>
         </div>
     </div>
@@ -94,7 +92,7 @@
             </div>
             <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-check-circle-fill"></i>
-                p = {{ p_value }}{% if is_significant %} — under 0.05 is the usual bar{% endif %}
+                {% if is_significant %}Very unlikely to be a coincidence{% elif plain_summary %}Could still just be luck{% else %}Awaiting uploaded surveillance data{% endif %}
             </div>
         </div>
     </div>
@@ -107,93 +105,79 @@
             </div>
             <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-clock-history"></i>
-                {{ driver_label }} today vs. cases {{ lag_weeks }} {{ cadence_unit }}{{ lag_weeks|pluralize }} later
+                {{ plain_driver|capfirst }} today vs. cases {{ lag_weeks }} {{ cadence_unit }}{{ lag_weeks|pluralize }} later
             </div>
         </div>
     </div>
 </div>
 
-<!-- Interactive Chart Container -->
+<!-- Chart -->
 <div class="premium-card mb-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
             <i class="bi bi-activity text-primary"></i>
-            Epidemiological & Environmental Overlay
+            Cases and Weather, Over Time
         </h5>
-        <span class="badge bg-light text-secondary border p-2 fw-medium">Weekly Time-Series Graph</span>
     </div>
     <div style="position: relative; height: 320px; width: 100%;">
         <canvas id="timeLagCorrelationChart"></canvas>
     </div>
 </div>
 
-<!-- Technical Summary -->
-<div class="premium-card mb-4">
-    <h5 class="fw-bold text-secondary mb-2" style="font-size: 1rem;">Correlation Model Methodology</h5>
-    <p class="text-muted small mb-0" style="line-height: 1.6;">
-        This view computes a <strong>Pearson correlation coefficient (r)</strong> between the selected environmental
-        driver and RDT-confirmed case counts, offset by the chosen lag window to approximate the mosquito
-        breeding-to-clinical-presentation delay. Statistical significance is estimated via a
-        <strong>Fisher z-transformation</strong> of r, converted to a two-tailed p-value against the sample size shown
-        above. Adjust the driver and lag controls to explore how the relationship shifts across different
-        environmental variables and time offsets.
-    </p>
-</div>
-
-<!-- Random Forest Ensemble Forecast -->
+<!-- Automated Prediction -->
 <div class="mb-3 mt-5">
-    <span class="text-primary fw-bold text-uppercase small" style="font-size: 0.8rem; letter-spacing: 0.05em;">Ensemble Machine Learning</span>
-    <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.5px;">Random Forest Case Forecast</h2>
+    <h2 class="fw-bold text-dark m-0">Predicting Future Cases</h2>
     <p class="text-muted small mb-0">
-        Combines lagged rainfall, lagged temperature, and each district's own prior-period case count into one
-        model — unlike the single-variable correlation above, which looks at one driver at a time.
+        This goes a step further than the comparison above: a computer model combines rainfall, temperature, and
+        each district's own recent case count to guess future case numbers — instead of comparing one weather
+        factor at a time.
     </p>
 </div>
 
 {% if not rf_available %}
 <div class="alert alert-warning border-0 rounded-3 mb-4">
     <i class="bi bi-info-circle-fill me-1"></i>
-    <strong>Not enough reporting history yet to train and honestly evaluate a forest.</strong>
-    This lag window produces {{ rf_n_samples }} usable sample(s), but a trustworthy forecast needs enough
-    prior-year data to train on <em>and</em> a full held-out {{ cadence_unit }} to test against — training and
-    testing on the same rows would let the model just memorize them. Upload more reporting history, or try a
-    shorter lag window, to enable this section.
+    <strong>Not enough historical data yet to build and fairly test a prediction model.</strong>
+    This delay setting gives us {{ rf_n_samples }} usable record(s), but a trustworthy model needs enough past data
+    to learn from, plus a full {{ cadence_unit }} of data it has never seen to test itself against — otherwise it
+    could just be memorizing the answers instead of actually predicting them. Upload more historical data, or try
+    a shorter delay, to enable this section.
 </div>
 {% else %}
 <div class="row g-4 mb-4">
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Out-of-Sample R²</span>
-                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ rf_r2 }}</h3>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">How Accurate?</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 1.5rem;">{{ rf_accuracy_word }}</h3>
             </div>
-            <div class="mt-3 small text-success fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-graph-up-arrow"></i>
-                Evaluated on {{ rf_test_year }} only — a full {{ cadence_unit }} the model never trained on
+                {% if rf_r2_pct > 0 %}Captures about {{ rf_r2_pct }}% of the year-to-year pattern{% else %}Did no better than guessing last time's number{% endif %}
             </div>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Mean Absolute Error</span>
-                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">±{{ rf_mae }}</h3>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Typically Off By</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 1.5rem;">&plusmn;{{ rf_mae }} cases</h3>
             </div>
-            <div class="mt-3 small text-muted fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-rulers"></i>
-                Average confirmed-case miss, in either direction, on {{ rf_test_year }}
+                On average, per district, in {{ rf_test_year }}
             </div>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Train / Test Split</span>
-                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ rf_n_train }} / {{ rf_n_test }}</h3>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Tested Fairly?</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 1.5rem;">Yes</h3>
             </div>
-            <div class="mt-3 small text-warning fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-clock-history"></i>
-                Trained on every {{ cadence_unit }} before {{ rf_test_year }}, tested only on {{ rf_test_year }}
+                Learned from {{ rf_n_train }} older records, then tested on {{ rf_n_test }} records from {{ rf_test_year }} it had never seen
             </div>
         </div>
     </div>
@@ -204,7 +188,7 @@
         <div class="premium-card h-100">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-bar-chart-steps text-primary"></i> Feature Importance
+                    <i class="bi bi-bar-chart-steps text-primary"></i> What It Relies On Most
                 </h5>
             </div>
             {% for name, pct in rf_feature_importance %}
@@ -219,9 +203,9 @@
             </div>
             {% endfor %}
             <p class="text-muted mt-3 mb-0" style="font-size: 0.72rem;">
-                How much each input reduced prediction error across the forest's trees. District identity is not a
-                feature — with only a few records per district, the model would otherwise just memorize each
-                district's baseline instead of learning a transferable pattern.
+                How much each factor shapes the model's guess. A district's own name/identity isn't one of the
+                factors — with only a few records per district, the model would just memorize each district's
+                usual numbers instead of learning something that works for districts it hasn't seen much of.
             </p>
         </div>
     </div>
@@ -229,7 +213,7 @@
         <div class="premium-card h-100">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-check2-square text-primary"></i> Predicted vs. Actual — {{ rf_test_year }}
+                    <i class="bi bi-check2-square text-primary"></i> Guess vs. Reality — {{ rf_test_year }}
                 </h5>
                 <span class="badge bg-light text-secondary border p-2 fw-medium">Top {{ rf_avp_shown }} of {{ rf_n_test }} Districts</span>
             </div>
@@ -237,25 +221,41 @@
                 <canvas id="rfActualVsPredictedChart"></canvas>
             </div>
             <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
-                Ranked by actual confirmed cases, highest first — the districts a response team would check the
-                model's judgment against first.
+                Highest-case districts first — the ones a response team would check the model's guess against first.
             </p>
         </div>
     </div>
 </div>
-
-<div class="premium-card mb-4">
-    <h5 class="fw-bold text-secondary mb-2" style="font-size: 1rem;">Random Forest Methodology</h5>
-    <p class="text-muted small mb-0" style="line-height: 1.6;">
-        A <strong>Random Forest Regressor</strong> (200 trees, depth-limited to guard against overfitting on a
-        dataset this size) is trained to predict a district's confirmed cases from rainfall and temperature lagged
-        by the same window selected above, plus that district's own prior-period case count. Unlike the correlation
-        panel, it's evaluated with a <strong>time-based holdout</strong> — trained only on {{ cadence_unit }}s before
-        {{ rf_test_year }}, then scored strictly on {{ rf_test_year }}, data it never saw during training — so the R²
-        and MAE above reflect genuine forecasting skill on unseen data, not fit to data it already memorized.
-    </p>
-</div>
 {% endif %}
+
+<!-- Technical details, collapsed by default: everything above is plain-language;
+     the full statistical/model methodology lives here for anyone who wants it. -->
+<details class="premium-card mt-2">
+    <summary class="fw-semibold text-dark" style="cursor: pointer;">Show technical details</summary>
+    <div class="mt-3">
+        <h6 class="fw-bold text-secondary mb-2" style="font-size: 0.85rem;">Correlation</h6>
+        <p class="text-muted small" style="line-height: 1.6;">
+            This page computes a <strong>Pearson correlation coefficient (r)</strong> between the selected
+            environmental driver and RDT-confirmed case counts, offset by the chosen lag window to approximate the
+            mosquito breeding-to-clinical-presentation delay. Statistical significance is estimated via a
+            <strong>Fisher z-transformation</strong> of r, converted to a two-tailed p-value against the sample
+            size shown above.
+            {% if has_data %}Current result: r = {{ correlation_r }}, p = {{ p_value }}, n = {{ sample_size }}.{% endif %}
+        </p>
+        {% if rf_available %}
+        <h6 class="fw-bold text-secondary mb-2 mt-3" style="font-size: 0.85rem;">Prediction model</h6>
+        <p class="text-muted small mb-0" style="line-height: 1.6;">
+            A <strong>Random Forest Regressor</strong> (200 trees, depth-limited to guard against overfitting on a
+            dataset this size) is trained to predict a district's confirmed cases from rainfall and temperature
+            lagged by the same window selected above, plus that district's own prior-period case count. It's
+            evaluated with a <strong>time-based holdout</strong> — trained only on {{ cadence_unit }}s before
+            {{ rf_test_year }}, then scored strictly on {{ rf_test_year }}, data it never saw during training.
+            Current result: R&sup2; = {{ rf_r2 }}, MAE = &plusmn;{{ rf_mae }}, trained on {{ rf_n_train }} records,
+            tested on {{ rf_n_test }}.
+        </p>
+        {% endif %}
+    </div>
+</details>
 {% endblock %}
 
 {% block scripts %}
@@ -281,7 +281,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     fill: true
                 },
                 {
-                    label: 'Confirmed Malaria Cases (RDT)',
+                    label: 'Confirmed Malaria Cases',
                     data: {{ chart_cases_json|safe }},
                     borderColor: '#dc3545',
                     backgroundColor: 'transparent',
@@ -310,7 +310,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 yEpidemiology: {
                     type: 'linear',
                     position: 'right',
-                    title: { display: true, text: 'Clinical Malaria Case Tally', color: '#dc3545', font: { weight: 'bold', family: 'Inter' } },
+                    title: { display: true, text: 'Confirmed Cases', color: '#dc3545', font: { weight: 'bold', family: 'Inter' } },
                     grid: { drawOnChartArea: false }
                 }
             }
@@ -326,13 +326,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 labels: {{ rf_avp_labels_json|default:"[]"|safe }},
                 datasets: [
                     {
-                        label: 'Actual Confirmed Cases',
+                        label: 'What Really Happened',
                         data: {{ rf_avp_actual_json|default:"[]"|safe }},
                         backgroundColor: 'rgba(220, 53, 69, 0.75)',
                         borderRadius: 4
                     },
                     {
-                        label: 'Random Forest Prediction',
+                        label: "Model's Guess",
                         data: {{ rf_avp_predicted_json|default:"[]"|safe }},
                         backgroundColor: 'rgba(13, 110, 253, 0.55)',
                         borderRadius: 4

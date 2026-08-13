@@ -374,7 +374,24 @@ def _describe_correlation(r_value, p_value, plain_driver, lag_periods, cadence_u
 
 _RF_MIN_TRAIN = 20
 _RF_MIN_TEST = 5
-_RF_FEATURE_NAMES = ['Rainfall (lagged)', 'Temperature (lagged)', 'Prior-period confirmed cases']
+_RF_FEATURE_NAMES = ['Rainfall a while earlier', 'Temperature a while earlier', 'How many cases there were last time']
+
+# (upper bound, plain-language accuracy word) — how much of the year-to-year
+# pattern the model's R² captures, in words instead of a bare statistic.
+_RF_ACCURACY_BANDS = [
+    (0.0, 'Not yet accurate'),
+    (0.3, 'Slightly accurate'),
+    (0.6, 'Somewhat accurate'),
+    (0.8, 'Fairly accurate'),
+    (1.01, 'Highly accurate'),
+]
+
+
+def _describe_forecast_accuracy(r2):
+    """Plain-language read on the forecast model's R² — see _RF_ACCURACY_BANDS."""
+    if r2 <= 0:
+        return 'Not yet accurate'
+    return next(word for ceiling, word in _RF_ACCURACY_BANDS if r2 < ceiling)
 
 
 def _random_forest_forecast(lag_periods):
@@ -562,6 +579,8 @@ def analytics_view(request):
         'rf_available': rf['available'],
         'rf_n_samples': rf.get('n_samples'),
         'rf_r2': f"{rf['r2']:.2f}" if rf.get('available') else None,
+        'rf_r2_pct': round(rf['r2'] * 100) if rf.get('available') else None,
+        'rf_accuracy_word': _describe_forecast_accuracy(rf['r2']) if rf.get('available') else None,
         'rf_mae': f"{rf['mae']:.1f}" if rf.get('available') else None,
         'rf_n_train': rf.get('n_train'),
         'rf_n_test': rf.get('n_test'),
