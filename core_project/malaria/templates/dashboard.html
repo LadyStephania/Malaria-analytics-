@@ -68,7 +68,7 @@
             <div>
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
                 <h2 class="fw-bold mb-0 text-primary" style="font-size: 2rem;">{{ confirmed_rdt }}</h2>
-                <span class="text-success small fw-semibold" style="font-size: 0.78rem;">Positive by rapid diagnostic test</span>
+                <span class="text-success small fw-semibold" style="font-size: 0.78rem;">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
             </div>
             <div class="icon-box bg-success bg-opacity-10 text-success"><i class="bi bi-shield-check"></i></div>
         </div>
@@ -79,7 +79,7 @@
             <div>
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate</span>
                 <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ positivity_rate }}%</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">Share of suspected cases confirmed</span>
+                <span class="text-muted small" style="font-size: 0.78rem;">Confirmed &divide; suspected{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
             </div>
             <div class="icon-box bg-info bg-opacity-10 text-info"><i class="bi bi-percent"></i></div>
         </div>
