@@ -78,8 +78,10 @@
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
             <div>
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate</span>
-                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ positivity_rate }}%</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">Confirmed &divide; suspected{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
+                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{% if positivity_rate is not None %}{{ positivity_rate }}%{% else %}N/A{% endif %}</h2>
+                <span class="text-muted small" style="font-size: 0.78rem;">
+                    {% if positivity_rate is not None %}Confirmed &divide; suspected{% if data_year_range %}, {{ data_year_range }}{% endif %}{% else %}No suspected-case data on file{% endif %}
+                </span>
             </div>
             <div class="icon-box bg-info bg-opacity-10 text-info"><i class="bi bi-percent"></i></div>
         </div>

@@ -212,7 +212,12 @@ def dashboard_view(request):
     )
     total_suspected = totals['total_suspected'] or 0
     total_confirmed = totals['total_confirmed'] or 0
-    positivity_rate = round((total_confirmed / total_suspected) * 100, 1) if total_suspected else 0.0
+    # None (not 0.0) when there's no suspected-case denominator to divide by —
+    # e.g. a confirmed-cases-only import. "0.0%" would read as "almost nobody
+    # tested positive," which is the opposite of what a missing denominator
+    # means; the template shows "N/A" instead so it isn't mistaken for a real,
+    # reassuringly-low rate.
+    positivity_rate = round((total_confirmed / total_suspected) * 100, 1) if total_suspected else None
 
     # Some sources (e.g. an NMEC export carrying only confirmed cases, no
     # suspected/attendance figures) legitimately leave suspected_cases at 0 for
