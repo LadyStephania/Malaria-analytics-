@@ -30,11 +30,11 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted" for="newPassword">Temporary Password</label>
-                    <input type="password" id="newPassword" name="new_password" class="form-control" placeholder="••••••••" required>
+                    <input type="password" id="newPassword" name="new_password" class="form-control" placeholder="••••••••" autocomplete="new-password" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted" for="newPasswordConfirm">Confirm Password</label>
-                    <input type="password" id="newPasswordConfirm" name="new_password_confirm" class="form-control" placeholder="••••••••" required>
+                    <input type="password" id="newPasswordConfirm" name="new_password_confirm" class="form-control" placeholder="••••••••" autocomplete="new-password" required>
                 </div>
                 <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Authorize and Save Profile</button>
             </form>
@@ -70,7 +70,7 @@
                             <td class="text-end">
                                 <div class="d-flex justify-content-end gap-1 flex-wrap">
                                     {% if u != request.user %}
-                                    <form method="POST" class="d-inline">
+                                    <form method="POST" class="d-inline" {% if u.is_active %}onsubmit="return confirm('Deactivate this account? They will immediately lose access.');"{% endif %}>
                                         {% csrf_token %}
                                         <input type="hidden" name="form_action" value="toggle">
                                         <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -91,8 +91,8 @@
                                         {% csrf_token %}
                                         <input type="hidden" name="form_action" value="reset_password">
                                         <input type="hidden" name="user_id" value="{{ u.id }}">
-                                        <input type="password" name="reset_new_password" class="form-control form-control-sm" placeholder="New password" required style="max-width: 160px;">
-                                        <input type="password" name="reset_new_password_confirm" class="form-control form-control-sm" placeholder="Confirm password" required style="max-width: 160px;">
+                                        <input type="password" name="reset_new_password" class="form-control form-control-sm" placeholder="New password" autocomplete="new-password" required style="max-width: 160px;">
+                                        <input type="password" name="reset_new_password_confirm" class="form-control form-control-sm" placeholder="Confirm password" autocomplete="new-password" required style="max-width: 160px;">
                                         <button type="submit" class="btn btn-sm btn-primary">Set</button>
                                     </form>
                                 </div>

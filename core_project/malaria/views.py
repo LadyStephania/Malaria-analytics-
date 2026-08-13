@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import math
 import datetime
 import requests
@@ -16,6 +17,8 @@ from django.db import IntegrityError
 from django.db.models import Sum, Avg, Max
 from django.http import HttpResponse
 from .models import SystemUser, IntegratedMalariaData, ZambianDistrict
+
+logger = logging.getLogger(__name__)
 
 # ================= STATISTICAL HELPERS =================
 # Pure stdlib implementations (no numpy/scipy dependency required).
@@ -822,8 +825,13 @@ def upload_view(request):
                 f"{updated_count} existing observation(s) updated."
             )
 
-        except Exception as error:
-            messages.error(request, f"Failed to parse spreadsheet file structure. Technical log error: {str(error)}")
+        except Exception:
+            logger.exception("Failed to parse uploaded CSV %r", csv_file.name)
+            messages.error(
+                request,
+                "Failed to parse spreadsheet file structure. Check that the file is a valid CSV with the "
+                "expected columns and try again."
+            )
 
     return render(request, 'upload.html')
 
