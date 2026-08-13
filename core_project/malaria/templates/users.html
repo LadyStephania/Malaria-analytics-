@@ -87,11 +87,12 @@
                                 </div>
                                 {% if u != request.user %}
                                 <div class="collapse mt-2" id="resetPw{{ u.id }}">
-                                    <form method="POST" class="d-flex gap-1 justify-content-end">
+                                    <form method="POST" class="d-flex gap-1 justify-content-end flex-wrap">
                                         {% csrf_token %}
                                         <input type="hidden" name="form_action" value="reset_password">
                                         <input type="hidden" name="user_id" value="{{ u.id }}">
                                         <input type="password" name="reset_new_password" class="form-control form-control-sm" placeholder="New password" required style="max-width: 160px;">
+                                        <input type="password" name="reset_new_password_confirm" class="form-control form-control-sm" placeholder="Confirm password" required style="max-width: 160px;">
                                         <button type="submit" class="btn btn-sm btn-primary">Set</button>
                                     </form>
                                 </div>

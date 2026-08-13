@@ -4,6 +4,7 @@ import json
 import math
 import datetime
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -448,14 +449,46 @@ def _district_priority_queue():
     then by confirmed case count as a tiebreaker.
     """
     districts = ZambianDistrict.objects.filter(integratedmalariadata__isnull=False).distinct()
-    queue = []
+
+    # Pass 1: case burden is pure DB lookup — cheap, do it sequentially and drop
+    # any district with no reporting history yet.
+    burden_by_id = {}
     for d in districts:
         recent_cases, _prior_cases, reference_date, _window_len, _burden_label, burden_badge, incidence = _recent_case_burden(d)
         if reference_date is None:
             continue
-        burden_rank = _RISK_RANK[burden_badge]
+        burden_by_id[d.id] = {
+            'district': d,
+            'recent_cases': recent_cases,
+            'reference_date': reference_date,
+            'burden_badge': burden_badge,
+            'incidence': incidence,
+        }
 
-        forecast_days = _fetch_forecast_days(d.latitude, d.longitude)
+    # Pass 2: the forecast fetch is the slow part — one network round-trip per
+    # distinct location (each individually cached 6h, see _fetch_forecast_days).
+    # Fetching them one district at a time serially means a cold cache pays for
+    # N round-trips back-to-back on a single page load. Fan them out on a small
+    # thread pool instead — network-bound I/O, so threading (not multiprocessing)
+    # is enough — and dedupe by rounded coordinate so districts sharing a location
+    # only trigger one request.
+    coords = {
+        (round(info['district'].latitude, 2), round(info['district'].longitude, 2))
+        for info in burden_by_id.values()
+    }
+    forecast_by_coord = {}
+    if coords:
+        with ThreadPoolExecutor(max_workers=min(10, len(coords))) as executor:
+            future_to_coord = {executor.submit(_fetch_forecast_days, lat, lon): (lat, lon) for lat, lon in coords}
+            for future, coord in future_to_coord.items():
+                forecast_by_coord[coord] = future.result()
+
+    queue = []
+    for info in burden_by_id.values():
+        d = info['district']
+        burden_rank = _RISK_RANK[info['burden_badge']]
+
+        forecast_days = forecast_by_coord.get((round(d.latitude, 2), round(d.longitude, 2)))
         forecast_summary = _forecast_risk_summary(forecast_days)
         forecast_rank = _RISK_RANK[forecast_summary['badge']] if forecast_summary else None
 
@@ -469,10 +502,10 @@ def _district_priority_queue():
             'badge': meta['risk_badge'],
             'tier_label': meta['risk_level'],
             'icon': meta['icon'],
-            'cases': recent_cases,
-            'incidence': incidence,
+            'cases': info['recent_cases'],
+            'incidence': info['incidence'],
             'forecast_available': forecast_summary is not None,
-            'date': reference_date,
+            'date': info['reference_date'],
         })
 
     # Fixed priority order for the 5 named tiers (critical worst, stable best) rather
@@ -661,7 +694,7 @@ def weather_view(request):
             })
     else:
         forecast_cards = [
-            {'day': 'Sync Idle', 'date': '', 'rain': '0.0 mm', 'temp': '25.0°C', 'risk': 'Cache Mode Active', 'badge': 'secondary'},
+            {'day': 'Forecast Unavailable', 'date': '', 'rain': '—', 'temp': '—', 'risk': 'Weather API unreachable — try again shortly', 'badge': 'secondary'},
         ]
 
     return render(request, 'weather.html', {
@@ -842,9 +875,12 @@ def users_view(request):
         elif form_action == 'reset_password':
             target_id = request.POST.get('user_id')
             new_pw = request.POST.get('reset_new_password') or ''
+            new_pw_confirm = request.POST.get('reset_new_password_confirm') or ''
             target_user = SystemUser.objects.filter(pk=target_id).first()
             if not target_user:
                 messages.error(request, "Account not found.")
+            elif new_pw != new_pw_confirm:
+                messages.error(request, "New password and confirmation do not match.")
             else:
                 try:
                     validate_password(new_pw, user=target_user)
