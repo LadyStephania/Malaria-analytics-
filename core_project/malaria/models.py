@@ -45,7 +45,6 @@ class IntegratedMalariaData(models.Model):
     reporting_year = models.IntegerField()
     
     # Clinical Metrics from NMEC records
-    suspected_cases = models.IntegerField(default=0)
     rdt_confirmations = models.IntegerField(default=0)
     
     # Meteorological Metrics from Open-Meteo API data stream

@@ -52,18 +52,7 @@
 
 <!-- Row 1: Summary Metric Cards -->
 <div class="row g-4 mb-4">
-    <div class="col-12 col-md-3">
-        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
-            <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Suspected Cases</span>
-                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ total_suspected }}</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">{% if data_year_range %}All clinic visits, {{ data_year_range }}{% else %}All reported clinic visits{% endif %}</span>
-            </div>
-            <div class="icon-box bg-primary bg-opacity-10 text-primary"><i class="bi bi-clipboard2-pulse"></i></div>
-        </div>
-    </div>
-
-    <div class="col-12 col-md-3">
+    <div class="col-12 col-md-4">
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
             <div>
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
@@ -74,20 +63,18 @@
         </div>
     </div>
 
-    <div class="col-12 col-md-3">
+    <div class="col-12 col-md-4">
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate</span>
-                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{% if positivity_rate is not None %}{{ positivity_rate }}%{% else %}N/A{% endif %}</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">
-                    {% if positivity_rate is not None %}Confirmed &divide; suspected{% if data_year_range %}, {{ data_year_range }}{% endif %}{% else %}No suspected-case data on file{% endif %}
-                </span>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts Reporting</span>
+                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ districts_reporting }}</h2>
+                <span class="text-muted small" style="font-size: 0.78rem;">With at least one case record on file</span>
             </div>
-            <div class="icon-box bg-info bg-opacity-10 text-info"><i class="bi bi-percent"></i></div>
+            <div class="icon-box bg-info bg-opacity-10 text-info"><i class="bi bi-geo-alt"></i></div>
         </div>
     </div>
 
-    <div class="col-12 col-md-3">
+    <div class="col-12 col-md-4">
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100" style="border-left: 4px solid #dc3545;">
             <div>
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest-Burden District</span>
@@ -213,7 +200,6 @@ document.addEventListener("DOMContentLoaded", function () {
         .bindPopup(
             '<strong>' + point.name + '</strong><br>' +
             'Confirmed (RDT): ' + point.cases + rangeLine + '<br>' +
-            'Suspected: ' + point.suspected + '<br>' +
             incidenceLine +
             'Risk tier: ' + point.risk + '<br>' +
             '<a href="' + decisionSupportUrl + '?district_id=' + point.id + '">View full history &rarr;</a>'

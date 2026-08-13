@@ -205,26 +205,13 @@ def logout_view(request):
 @login_required
 def dashboard_view(request):
     totals = IntegratedMalariaData.objects.aggregate(
-        total_suspected=Sum('suspected_cases'),
         total_confirmed=Sum('rdt_confirmations'),
         latest_date=Max('date'),
         earliest_date=Min('date'),
     )
-    total_suspected = totals['total_suspected'] or 0
     total_confirmed = totals['total_confirmed'] or 0
-    # None (not 0.0) when there's no suspected-case denominator to divide by —
-    # e.g. a confirmed-cases-only import. "0.0%" would read as "almost nobody
-    # tested positive," which is the opposite of what a missing denominator
-    # means; the template shows "N/A" instead so it isn't mistaken for a real,
-    # reassuringly-low rate.
-    positivity_rate = round((total_confirmed / total_suspected) * 100, 1) if total_suspected else None
-
-    # Some sources (e.g. an NMEC export carrying only confirmed cases, no
-    # suspected/attendance figures) legitimately leave suspected_cases at 0 for
-    # every row. Gating "has any data" on total_suspected alone then falsely
-    # shows the "no records ingested yet" banner even with real confirmed-case
-    # history loaded — key it on whether there's ANY record instead.
     has_data = totals['latest_date'] is not None
+    districts_reporting = IntegratedMalariaData.objects.values('district_id').distinct().count()
 
     # A single label for how much reporting history the cumulative stats below
     # actually span, so a number like the hotspot totals or critical-node count
@@ -242,7 +229,6 @@ def dashboard_view(request):
         .values('district_id', 'district__name', 'district__latitude', 'district__longitude', 'district__population')
         .annotate(
             cases=Sum('rdt_confirmations'),
-            suspected=Sum('suspected_cases'),
             avg_rainfall=Avg('rainfall_mm'),
             avg_temp=Avg('avg_temperature_c'),
         )
@@ -267,7 +253,6 @@ def dashboard_view(request):
             'lat': row['district__latitude'],
             'lon': row['district__longitude'],
             'cases': cases,
-            'suspected': row['suspected'] or 0,
             'population': population,
             'incidence_per_10k': incidence,
             'risk': risk_label,
@@ -306,9 +291,8 @@ def dashboard_view(request):
         trend_title = 'Recent Confirmed Case Trend (by Epi Week)'
 
     context = {
-        'total_suspected': total_suspected,
         'confirmed_rdt': total_confirmed,
-        'positivity_rate': positivity_rate,
+        'districts_reporting': districts_reporting,
         'alert_district': alert_district,
         'active_user_role': request.user.get_role_display(),
         'has_data': has_data,
@@ -574,7 +558,7 @@ def _district_history(district):
         IntegratedMalariaData.objects
         .filter(district=district)
         .order_by('date')
-        .values('date', 'epi_week', 'reporting_year', 'suspected_cases', 'rdt_confirmations')
+        .values('date', 'epi_week', 'reporting_year', 'rdt_confirmations')
     )
     labels = []
     for r in records:
@@ -584,7 +568,6 @@ def _district_history(district):
             labels.append(f"W{r['epi_week']} '{str(r['reporting_year'])[-2:]}")
     return {
         'labels': labels,
-        'suspected': [r['suspected_cases'] for r in records],
         'confirmed': [r['rdt_confirmations'] for r in records],
         'count': len(records),
     }
@@ -804,7 +787,6 @@ def decision_view(request):
         'warning_days_7': forecast_summary['warning_days_7'] if forecast_summary else 0,
         'history_count': history['count'],
         'history_labels_json': json.dumps(history['labels']),
-        'history_suspected_json': json.dumps(history['suspected']),
         'history_confirmed_json': json.dumps(history['confirmed']),
     }
     return render(request, 'decision.html', context)
@@ -855,12 +837,12 @@ def weather_view(request):
     })
 
 # ================= 7. DATA UPLOAD PORT: CSV HEADER MAPPER =================
-SAMPLE_CSV_HEADER = ['district', 'date', 'epi_week', 'reporting_year', 'suspected_cases', 'rdt_confirmations']
+SAMPLE_CSV_HEADER = ['district', 'date', 'epi_week', 'reporting_year', 'rdt_confirmations']
 SAMPLE_CSV_ROWS = [
-    ['Chadiza', '2026-01-05', '1', '2026', '120', '68'],
-    ['Chadiza', '2026-01-12', '2', '2026', '145', '81'],
-    ['Lusaka', '2026-01-05', '1', '2026', '310', '150'],
-    ['Lusaka', '2026-01-12', '2', '2026', '298', '142'],
+    ['Chadiza', '2026-01-05', '1', '2026', '68'],
+    ['Chadiza', '2026-01-12', '2', '2026', '81'],
+    ['Lusaka', '2026-01-05', '1', '2026', '150'],
+    ['Lusaka', '2026-01-12', '2', '2026', '142'],
 ]
 
 
@@ -909,8 +891,7 @@ def upload_view(request):
             date_idx = find_index(['date', 'time', 'period'], 1)
             week_idx = find_index(['week', 'epi'], 2)
             year_idx = find_index(['year', 'yr'], 3)
-            susp_idx = find_index(['susp', 'attend', 'total'], 4)
-            rdt_idx  = find_index(['rdt', 'confirm', 'pos'], 5)
+            rdt_idx  = find_index(['rdt', 'confirm', 'pos'], 4)
             pop_idx  = find_optional_index(['pop'])  # optional — enables incidence-rate hotspot tiers
 
             def safe_int(value_str):
@@ -922,14 +903,13 @@ def upload_view(request):
             created_count = 0
             updated_count = 0
             for row in reader:
-                if not row or len(row) <= max(dist_idx, date_idx, week_idx, year_idx, susp_idx, rdt_idx):
+                if not row or len(row) <= max(dist_idx, date_idx, week_idx, year_idx, rdt_idx):
                     continue
 
                 district_name = row[dist_idx].strip()
                 record_date_str = row[date_idx].strip()
                 epi_week      = safe_int(row[week_idx])
                 reporting_year = safe_int(row[year_idx])
-                suspected     = safe_int(row[susp_idx])
                 rdt_positives = safe_int(row[rdt_idx])
 
                 if not district_name:
@@ -957,7 +937,6 @@ def upload_view(request):
                     defaults={
                         'epi_week': epi_week,
                         'reporting_year': reporting_year,
-                        'suspected_cases': suspected,
                         'rdt_confirmations': rdt_positives
                     }
                 )

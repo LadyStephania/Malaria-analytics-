@@ -25,7 +25,7 @@ class ZambianDistrictAdmin(admin.ModelAdmin):
 class IntegratedMalariaDataAdmin(admin.ModelAdmin):
     list_display = (
         'district', 'date', 'epi_week', 'reporting_year',
-        'suspected_cases', 'rdt_confirmations', 'rainfall_mm', 'avg_temperature_c',
+        'rdt_confirmations', 'rainfall_mm', 'avg_temperature_c',
     )
     list_filter = ('district', 'reporting_year')
     date_hierarchy = 'date'
