@@ -14,7 +14,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import IntegrityError
-from django.db.models import Sum, Avg, Max
+from django.db.models import Sum, Avg, Max, Min
 from django.http import HttpResponse
 from .models import SystemUser, IntegratedMalariaData, ZambianDistrict
 
@@ -205,10 +205,27 @@ def dashboard_view(request):
         total_suspected=Sum('suspected_cases'),
         total_confirmed=Sum('rdt_confirmations'),
         latest_date=Max('date'),
+        earliest_date=Min('date'),
     )
     total_suspected = totals['total_suspected'] or 0
     total_confirmed = totals['total_confirmed'] or 0
     positivity_rate = round((total_confirmed / total_suspected) * 100, 1) if total_suspected else 0.0
+
+    # Some sources (e.g. an NMEC export carrying only confirmed cases, no
+    # suspected/attendance figures) legitimately leave suspected_cases at 0 for
+    # every row. Gating "has any data" on total_suspected alone then falsely
+    # shows the "no records ingested yet" banner even with real confirmed-case
+    # history loaded — key it on whether there's ANY record instead.
+    has_data = totals['latest_date'] is not None
+
+    # A single label for how much reporting history the cumulative stats below
+    # actually span, so a number like the hotspot totals or critical-node count
+    # doesn't read as "this year's cases" when it's really a multi-year sum.
+    if totals['earliest_date'] and totals['latest_date']:
+        earliest_year, latest_year = totals['earliest_date'].year, totals['latest_date'].year
+        data_year_range = str(latest_year) if earliest_year == latest_year else f"{earliest_year}–{latest_year}"
+    else:
+        data_year_range = None
 
     # Roll up every district that has records, for both the "critical node"
     # headline stat and the Leaflet hotspot map.
@@ -286,10 +303,12 @@ def dashboard_view(request):
         'positivity_rate': positivity_rate,
         'alert_district': alert_district,
         'active_user_role': request.user.get_role_display(),
-        'has_data': total_suspected > 0,
+        'has_data': has_data,
         'latest_date': totals['latest_date'],
+        'data_year_range': data_year_range,
         'map_points': map_points,
         'map_points_json': json.dumps(map_points),
+        'data_year_range_json': json.dumps(data_year_range),
         'trend_labels_json': json.dumps(trend_labels),
         'trend_cases_json': json.dumps([r['cases'] or 0 for r in trend_rows]),
         'trend_title': trend_title,
