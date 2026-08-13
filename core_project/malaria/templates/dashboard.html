@@ -33,13 +33,12 @@
 
 <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
-        <span class="text-primary fw-bold text-uppercase small" style="font-size: 0.8rem; letter-spacing: 0.05em;">Operational Context Panel</span>
-        <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.5px;">National Surveillance Overview</h2>
-        <p class="text-muted small mb-0">Active authorized authentication context: <strong class="text-primary">{{ active_user_role }}</strong></p>
+        <h2 class="fw-bold text-dark m-0">Surveillance Overview</h2>
+        <p class="text-muted small mb-0">Signed in as <strong class="text-primary">{{ active_user_role }}</strong></p>
     </div>
     {% if latest_date %}
     <span class="badge bg-light text-secondary border p-2 fw-medium">
-        <i class="bi bi-clock-history me-1"></i>Most recent record: {{ latest_date }}{% if data_year_range %} — reporting history spans {{ data_year_range }}{% endif %}
+        <i class="bi bi-clock-history me-1"></i>Latest report: {{ latest_date }}{% if data_year_range %} &middot; Data on file: {{ data_year_range }}{% endif %}
     </span>
     {% endif %}
 </div>
@@ -47,31 +46,31 @@
 {% if not has_data %}
 <div class="alert alert-warning border-0 rounded-3 mb-4">
     <i class="bi bi-info-circle-fill me-1"></i>
-    No surveillance records have been ingested yet. Head to <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to populate the dashboard.
+    No surveillance records yet. Go to <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to add some.
 </div>
 {% endif %}
 
-<!-- Row 1: Summary Aggregation Metric Cards -->
+<!-- Row 1: Summary Metric Cards -->
 <div class="row g-4 mb-4">
     <div class="col-12 col-md-3">
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Total Suspected Cases</span>
-                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ total_suspected }}</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">Cumulative Outpatient Registry</span>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Suspected Cases</span>
+                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ total_suspected }}</h2>
+                <span class="text-muted small" style="font-size: 0.78rem;">{% if data_year_range %}All clinic visits, {{ data_year_range }}{% else %}All reported clinic visits{% endif %}</span>
             </div>
-            <div class="icon-box bg-primary bg-opacity-10 text-primary">🤒</div>
+            <div class="icon-box bg-primary bg-opacity-10 text-primary"><i class="bi bi-clipboard2-pulse"></i></div>
         </div>
     </div>
 
     <div class="col-12 col-md-3">
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">RDT Confirmations Tally</span>
-                <h2 class="fw-bold mb-0 text-primary" style="font-size: 2rem; letter-spacing: -0.5px;">{{ confirmed_rdt }}</h2>
-                <span class="text-success small fw-semibold" style="font-size: 0.78rem;"><i class="bi bi-shield-fill-plus me-0.5"></i>Verified Positives</span>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
+                <h2 class="fw-bold mb-0 text-primary" style="font-size: 2rem;">{{ confirmed_rdt }}</h2>
+                <span class="text-success small fw-semibold" style="font-size: 0.78rem;">Positive by rapid diagnostic test</span>
             </div>
-            <div class="icon-box bg-success bg-opacity-10 text-success">🩸</div>
+            <div class="icon-box bg-success bg-opacity-10 text-success"><i class="bi bi-shield-check"></i></div>
         </div>
     </div>
 
@@ -79,21 +78,21 @@
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
             <div>
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate</span>
-                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ positivity_rate }}%</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">RDT Confirmed ÷ Suspected</span>
+                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ positivity_rate }}%</h2>
+                <span class="text-muted small" style="font-size: 0.78rem;">Share of suspected cases confirmed</span>
             </div>
-            <div class="icon-box bg-info bg-opacity-10 text-info">📊</div>
+            <div class="icon-box bg-info bg-opacity-10 text-info"><i class="bi bi-percent"></i></div>
         </div>
     </div>
 
     <div class="col-12 col-md-3">
         <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100" style="border-left: 4px solid #dc3545;">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Outbreak Critical Node</span>
-                <h2 class="fw-bold mb-0 text-danger" style="font-size: 1.5rem; letter-spacing: -0.5px;">{{ alert_district }}</h2>
-                <span class="text-danger small fw-semibold" style="font-size: 0.78rem;"><i class="bi bi-exclamation-triangle-fill me-0.5"></i>Highest Confirmed Load{% if data_year_range %} ({{ data_year_range }} cumulative){% endif %}</span>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest-Burden District</span>
+                <h2 class="fw-bold mb-0 text-danger" style="font-size: 1.5rem;">{{ alert_district }}</h2>
+                <span class="text-danger small fw-semibold" style="font-size: 0.78rem;">Most confirmed cases{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
             </div>
-            <div class="icon-box bg-danger bg-opacity-10 text-danger">🚨</div>
+            <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-triangle-fill"></i></div>
         </div>
     </div>
 </div>
@@ -105,7 +104,7 @@
         <div class="premium-card mb-0">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-map-fill text-primary"></i> Localized Risk Hotspot Mapping
+                    <i class="bi bi-map-fill text-primary"></i> District Risk Map
                 </h5>
                 <span class="badge bg-light text-secondary border p-2 fw-medium">{{ map_points|length }} District{{ map_points|length|pluralize }} Reporting</span>
             </div>
@@ -117,8 +116,8 @@
                     <div><span class="swatch" style="background:#f59e0b;"></span>Moderate</div>
                     <div><span class="swatch" style="background:#16a34a;"></span>Low</div>
                     <div class="text-muted mt-1" style="font-size: 0.65rem; max-width: 200px;">
-                        Cases per 10,000 population where known (≥50 high, ≥15 moderate); raw case count otherwise.
-                        {% if data_year_range %}Cumulative across all reported years ({{ data_year_range }}), not a single year.{% endif %}
+                        Cases per 10,000 people where population is known (50+ is high, 15+ is moderate), otherwise raw case count.
+                        {% if data_year_range %}Totals are cumulative across {{ data_year_range }}, not one year.{% endif %}
                     </div>
                 </div>
             </div>
@@ -129,10 +128,10 @@
     <div class="col-12 col-xl-4">
         <div class="premium-card h-100 mb-0">
             <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-1">
-                <i class="bi bi-list-ol text-primary"></i> District Hotspot Ranking
+                <i class="bi bi-list-ol text-primary"></i> Highest-Risk Districts
             </h5>
             {% if data_year_range %}
-            <p class="text-muted mb-2" style="font-size: 0.72rem;">Cumulative totals across all reported years ({{ data_year_range }}) — not this year alone.</p>
+            <p class="text-muted mb-2" style="font-size: 0.72rem;">Cumulative totals, {{ data_year_range }}.</p>
             {% endif %}
             {% if map_points %}
             <div style="max-height: 300px; overflow-y: auto;">
@@ -151,7 +150,7 @@
                 {% endfor %}
             </div>
             <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
-                Ranked by cases per 10,000 population where known; districts without a population on file are ranked by raw case count and listed last.
+                Ranked by cases per 10,000 people where population is known; others are ranked by raw case count and listed last.
             </p>
             {% else %}
             <p class="text-muted small mb-0">No district-level records yet.</p>
