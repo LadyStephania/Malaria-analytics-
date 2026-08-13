@@ -2,9 +2,8 @@
 {% block title %}Analytics | Malaria Insights{% endblock %}
 {% block content %}
 <div class="mb-4">
-    <span class="text-primary fw-bold text-uppercase small" style="font-size: 0.8rem; letter-spacing: 0.05em;">Statistical Modeling Core</span>
-    <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.5px;">Climate Correlation Matrix</h2>
-    <p class="text-muted small mb-0">Cross-referencing secondary epidemiological records with localized multi-week environmental parameters.</p>
+    <h2 class="fw-bold text-dark m-0">Weather &amp; Malaria Cases</h2>
+    <p class="text-muted small mb-0">Does rainfall or temperature predict confirmed cases a few {{ cadence_unit }}s later? This page checks the data and explains what it finds.</p>
 </div>
 
 {% if weather_unavailable %}
@@ -36,34 +35,51 @@
 <!-- Driver + Lag Controls -->
 <form method="get" class="premium-card d-flex flex-wrap align-items-center gap-3 mb-4">
     <div class="d-flex align-items-center gap-2">
-        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Environmental Driver</label>
+        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Compare</label>
         <select name="driver" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
             <option value="rainfall" {% if driver == 'rainfall' %}selected{% endif %}>Rainfall</option>
             <option value="temperature" {% if driver == 'temperature' %}selected{% endif %}>Temperature</option>
         </select>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Lag Window</label>
+        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Delay Before Cases Show Up</label>
         <select name="lag" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
             {% for n in lag_options %}
-            <option value="{{ n }}" {% if n == lag_weeks %}selected{% endif %}>{{ n }} week{{ n|pluralize }}</option>
+            <option value="{{ n }}" {% if n == lag_weeks %}selected{% endif %}>{{ n }} {{ cadence_unit }}{{ n|pluralize }}</option>
             {% endfor %}
         </select>
     </div>
-    <span class="text-muted small ms-auto"><i class="bi bi-info-circle me-1"></i>Recomputes the correlation below against the selected driver and lag.</span>
+    <span class="text-muted small ms-auto"><i class="bi bi-info-circle me-1"></i>Choose a weather factor and a delay, and the page below recalculates.</span>
 </form>
 
-<!-- Side-by-Side Summary Cards -->
+{% if plain_summary %}
+<!-- Plain-language verdict, up front -->
+<div class="premium-card mb-4 border-0" style="background: {% if plain_summary.confidence_tone == 'success' %}#f0fdf4{% else %}#fffbeb{% endif %};">
+    <div class="d-flex align-items-start gap-3">
+        <div class="icon-box {% if plain_summary.confidence_tone == 'success' %}bg-success{% else %}bg-warning{% endif %} bg-opacity-15 {% if plain_summary.confidence_tone == 'success' %}text-success{% else %}text-warning{% endif %}" style="width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i class="bi {% if plain_summary.confidence_tone == 'success' %}bi-check-lg{% else %}bi-question-lg{% endif %} fs-5"></i>
+        </div>
+        <div>
+            <p class="fw-semibold text-dark mb-1">{{ plain_summary.headline }}</p>
+            <p class="text-muted small mb-0">{{ plain_summary.confidence }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Side-by-Side Summary Cards: plain-language result first, the statistic underneath -->
 <div class="row g-4 mb-4">
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Pearson Correlation (R)</span>
-                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ correlation_r }}</h3>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">How Linked?</span>
+                <h3 class="fw-bold mb-0 text-dark text-capitalize" style="font-size: 1.5rem;">
+                    {% if plain_summary %}{{ plain_summary.strength_word }} link{% else %}Not enough data{% endif %}
+                </h3>
             </div>
-            <div class="mt-3 small {% if weather_unavailable %}text-danger{% else %}text-success{% endif %} fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-graph-up-arrow"></i>
-                {% if weather_unavailable %}No real weather variation in this dataset{% elif has_data %}{{ driver_label }} lagged {{ lag_weeks }} week{{ lag_weeks|pluralize }} vs. RDT cases ({{ sample_size }} obs.){% else %}Awaiting uploaded surveillance data{% endif %}
+                {% if weather_unavailable %}No real weather variation in this dataset{% elif has_data %}r = {{ correlation_r }} ({{ sample_size }} data points){% else %}Awaiting uploaded surveillance data{% endif %}
             </div>
         </div>
     </div>
@@ -71,12 +87,14 @@
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Significance P-Value</span>
-                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ p_value }}</h3>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Real Pattern, or Chance?</span>
+                <h3 class="fw-bold mb-0 {% if is_significant %}text-success{% else %}text-dark{% endif %}" style="font-size: 1.5rem;">
+                    {% if plain_summary %}{% if is_significant %}Likely real{% else %}Not certain{% endif %}{% else %}N/A{% endif %}
+                </h3>
             </div>
-            <div class="mt-3 small {% if is_significant %}text-primary{% else %}text-muted{% endif %} fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-check-circle-fill"></i>
-                {% if is_significant %}Statistically Significant (p &lt; 0.05){% else %}Not Yet Statistically Significant{% endif %}
+                p = {{ p_value }}{% if is_significant %} — under 0.05 is the usual bar{% endif %}
             </div>
         </div>
     </div>
@@ -84,12 +102,12 @@
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
             <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Applied Lag Window</span>
-                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ lag_weeks }} Week{{ lag_weeks|pluralize }}</h3>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Delay</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 1.5rem;">{{ lag_weeks }} {{ cadence_unit }}{{ lag_weeks|pluralize }}</h3>
             </div>
-            <div class="mt-3 small text-warning fw-semibold d-flex align-items-center gap-1">
+            <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-clock-history"></i>
-                Time offset between {{ driver_label|lower }} and observed cases
+                {{ driver_label }} today vs. cases {{ lag_weeks }} {{ cadence_unit }}{{ lag_weeks|pluralize }} later
             </div>
         </div>
     </div>

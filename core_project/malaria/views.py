@@ -309,13 +309,68 @@ def dashboard_view(request):
 
 # ================= 4. ANALYTICS CORRELATION ENGINE VIEW =================
 _DRIVER_FIELDS = {
-    'rainfall': ('rainfall_mm', 'Rainfall (mm)', '#0d6efd'),
-    'temperature': ('avg_temperature_c', 'Avg. Temperature (°C)', '#f59e0b'),
+    'rainfall': ('rainfall_mm', 'Rainfall (mm)', 'rainfall', '#0d6efd'),
+    'temperature': ('avg_temperature_c', 'Avg. Temperature (°C)', 'temperature', '#f59e0b'),
 }
 # Model-field defaults (models.py) stamped onto any row whose import didn't supply
 # real weather — e.g. the NMEC/DHIS2 case-only CSV. Used below to detect when the
 # correlation sample is dominated by placeholder values rather than real readings.
 _DRIVER_DEFAULTS = {'rainfall_mm': 0.0, 'avg_temperature_c': 25.0}
+
+# (upper bound, plain-language strength word) — standard rule-of-thumb bands for
+# interpreting |r|, used to translate the raw coefficient into a phrase a reader
+# doesn't need a statistics background to understand.
+_CORRELATION_BANDS = [
+    (0.1, 'no real'),
+    (0.3, 'a weak'),
+    (0.5, 'a moderate'),
+    (0.7, 'a strong'),
+    (1.01, 'a very strong'),
+]
+
+
+def _describe_correlation(r_value, p_value, plain_driver, lag_periods, cadence_unit, sample_size):
+    """
+    Translates the raw Pearson r / p-value into a one-sentence, jargon-free
+    summary plus short plain-language captions for each stat card — so a reader
+    with no statistics background gets the meaning without the numbers explained
+    to them. The numbers themselves stay on the page (smaller, secondary) for
+    anyone who wants them.
+    """
+    if r_value is None:
+        return None
+
+    abs_r = abs(r_value)
+    strength_word = next(word for ceiling, word in _CORRELATION_BANDS if abs_r < ceiling)
+    lag_phrase = f"{lag_periods} {cadence_unit}{'s' if lag_periods != 1 else ''}"
+    is_significant = p_value is not None and p_value < 0.05
+
+    if strength_word == 'no real':
+        headline = f"No real link found between {plain_driver} and malaria cases in this data."
+    else:
+        direction = 'more' if r_value > 0 else 'fewer'
+        headline = (
+            f"{plain_driver.capitalize()} has {strength_word} link with malaria cases: periods with higher "
+            f"{plain_driver} tend to be followed, about {lag_phrase} later, by {direction} confirmed cases."
+        )
+
+    if p_value is None:
+        confidence = "Not enough data yet to tell whether this is a real pattern or just chance."
+        confidence_tone = 'warning'
+    elif is_significant:
+        confidence = f"Based on {sample_size} reporting periods, this pattern is unlikely to be a coincidence."
+        confidence_tone = 'success'
+    else:
+        confidence = f"Based on {sample_size} reporting periods, this could still just be chance — not enough evidence yet."
+        confidence_tone = 'warning'
+
+    return {
+        'headline': headline,
+        'confidence': confidence,
+        'confidence_tone': confidence_tone,
+        'strength_word': strength_word.replace('a ', '').replace('no real', 'No real'),
+        'is_significant': is_significant,
+    }
 
 _RF_MIN_TRAIN = 20
 _RF_MIN_TEST = 5
@@ -420,7 +475,7 @@ def analytics_view(request):
     driver = request.GET.get('driver', 'rainfall')
     if driver not in _DRIVER_FIELDS:
         driver = 'rainfall'
-    driver_field, driver_label, driver_color = _DRIVER_FIELDS[driver]
+    driver_field, driver_label, plain_driver, driver_color = _DRIVER_FIELDS[driver]
 
     try:
         lag_weeks = int(request.GET.get('lag', 3))
@@ -480,12 +535,16 @@ def analytics_view(request):
     is_annual_cadence = len({r['epi_week'] for r in weekly_rows}) <= 1
     cadence_unit = 'year' if is_annual_cadence else 'week'
 
+    plain_summary = _describe_correlation(r_value, p_value, plain_driver, lag_weeks, cadence_unit, len(lagged_driver))
+
     rf = _random_forest_forecast(lag_weeks)
 
     context = {
         'driver': driver,
         'driver_label': driver_label,
+        'plain_driver': plain_driver,
         'driver_color': driver_color,
+        'plain_summary': plain_summary,
         'correlation_r': f"{r_value:+.2f}" if r_value is not None else 'N/A',
         'p_value': f"{p_value:.3f}" if p_value is not None else 'N/A',
         'is_significant': p_value is not None and p_value < 0.05,
