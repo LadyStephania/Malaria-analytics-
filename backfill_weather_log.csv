@@ -1,0 +1,117 @@
+district,expected_province,match_status,matched_admin1_or_error,latitude,longitude
+Chadiza,Eastern,PROVINCE_MATCH,Eastern Province,-14.06779,32.43917
+Chama,Eastern,BEST_GUESS,Muchinga,-11.21303,33.1521
+Chasefu,Eastern,BEST_GUESS,Muchinga,-11.91667,33.1
+Chavuma,Northwestern,PROVINCE_MATCH,North-Western Province,-13.06667,22.68333
+Chembe,Luapula,PROVINCE_MATCH,Luapula Province,-11.96201,28.74313
+Chibombo,Central,PROVINCE_MATCH,Central Province,-14.65685,28.07057
+Chienge,Luapula,NO_MATCH,no Zambian results,-15.42,28.28
+Chifunabuli,Luapula,NO_MATCH,no Zambian results,-15.42,28.28
+Chikankata,Southern,PROVINCE_MATCH,Southern Province,-16.25,28.13333
+Chilanga,Lusaka,PROVINCE_MATCH,Lusaka Province,-15.57079,28.2701
+Chililabombwe,Copperbelt,BEST_GUESS,Copperbelt,-12.36475,27.82286
+Chilubi,Northern,PROVINCE_MATCH,Northern Province,-11.11459,29.94634
+Chingola,Copperbelt,BEST_GUESS,Copperbelt,-12.52897,27.88382
+Chinsali,Muchinga,BEST_GUESS,Muchinga,-10.54142,32.08162
+Chipangali,Eastern,NO_MATCH,no Zambian results,-15.42,28.28
+Chipata,Eastern,PROVINCE_MATCH,Eastern Province,-13.63333,32.65
+Chipili,Luapula,PROVINCE_MATCH,Luapula Province,-10.73221,29.09322
+Chirundu,Southern,PROVINCE_MATCH,Southern Province,-16.03577,28.84311
+Chisamba,Central,PROVINCE_MATCH,Central Province,-14.97977,28.37907
+Chitambo,Central,PROVINCE_MATCH,Central Province,-12.91315,30.67087
+Choma,Southern,PROVINCE_MATCH,Southern Province,-16.80889,26.9875
+Chongwe,Lusaka,PROVINCE_MATCH,Lusaka Province,-15.32916,28.68204
+Gwembe,Southern,PROVINCE_MATCH,Southern Province,-16.49755,27.60691
+Ikelenge,Northwestern,PROVINCE_MATCH,North-Western Province,-11.2362,24.2775
+Isoka,Muchinga,BEST_GUESS,Muchinga,-10.16062,32.63353
+Itezhi-tezhi,Southern,PROVINCE_MATCH,Southern Province,-15.73691,26.04155
+Kabompo,Northwestern,PROVINCE_MATCH,North-Western Province,-13.59268,24.20081
+Kabwe,Central,PROVINCE_MATCH,Central Province,-14.4469,28.44644
+Kafue,Lusaka,PROVINCE_MATCH,Lusaka Province,-15.76911,28.18136
+Kalabo,Western,PROVINCE_MATCH,Western Province,-14.99307,22.67926
+Kalomo,Southern,PROVINCE_MATCH,Southern Province,-17.02581,26.48369
+Kalulushi,Copperbelt,BEST_GUESS,Copperbelt,-12.84151,28.09479
+Kalumbila,Northwestern,PROVINCE_MATCH,North-Western Province,-12.25098,25.43804
+Kanchibiya,Muchinga,NO_MATCH,no Zambian results,-15.42,28.28
+Kaoma,Western,PROVINCE_MATCH,Western Province,-14.78333,24.8
+Kapiri Mposhi,Central,PROVINCE_MATCH,Central Province,-13.97147,28.66985
+Kaputa,Northern,PROVINCE_MATCH,Northern Province,-8.46887,29.66193
+Kasama,Northern,PROVINCE_MATCH,Northern Province,-10.21289,31.18084
+Kasempa,Northwestern,PROVINCE_MATCH,North-Western Province,-13.45836,25.8338
+Kasenengwa,Eastern,NO_MATCH,no Zambian results,-15.42,28.28
+Katete,Eastern,PROVINCE_MATCH,Eastern Province,-14.05,32.08333
+Kawambwa,Luapula,PROVINCE_MATCH,Luapula Province,-9.7915,29.07913
+Kazungula,Southern,PROVINCE_MATCH,Southern Province,-17.79356,25.27473
+Kitwe,Copperbelt,BEST_GUESS,Copperbelt,-12.80243,28.21323
+Lavushimanda,Muchinga,NO_MATCH,no Zambian results,-15.42,28.28
+Limulunga,Western,PROVINCE_MATCH,Western Province,-15.09691,23.13757
+Livingstone,Southern,PROVINCE_MATCH,Southern Province,-17.84194,25.85425
+Luampa,Western,PROVINCE_MATCH,Western Province,-15.43111,24.72927
+Luangwa,Lusaka,PROVINCE_MATCH,Lusaka Province,-15.61667,30.41667
+Luano,Central,PROVINCE_MATCH,Central Province,-14.11481,30.14171
+Luanshya,Copperbelt,BEST_GUESS,Copperbelt,-13.13667,28.41661
+Lufwanyama,Copperbelt,NO_MATCH,no Zambian results,-15.42,28.28
+Lukulu,Western,PROVINCE_MATCH,Western Province,-14.37067,23.24196
+Lumezi,Eastern,PROVINCE_MATCH,Eastern Province,-12.51667,33.03333
+Lundazi,Eastern,PROVINCE_MATCH,Eastern Province,-12.29292,33.1782
+Lunga,Luapula,BEST_GUESS,Muchinga,-10.83818,32.37362
+Lunte,Northern,NO_MATCH,no Zambian results,52.085,5.62222
+Lupososhi,Northern,NO_MATCH,no Zambian results,-15.42,28.28
+Lusaka,Lusaka,PROVINCE_MATCH,Lusaka Province,-15.40669,28.28713
+Lusangazi,Eastern,NO_MATCH,no Zambian results,-11.49104,33.96984
+Luwingu,Northern,PROVINCE_MATCH,Northern Province,-10.2621,29.92712
+Mafinga,Muchinga,NO_MATCH,no Zambian results,-8.30019,35.29366
+Mambwe,Eastern,PROVINCE_MATCH,Eastern Province,-13.18333,31.9
+Mansa,Luapula,PROVINCE_MATCH,Luapula Province,-11.19976,28.89431
+Manyinga,Northwestern,PROVINCE_MATCH,North-Western Province,-13.41646,24.33532
+Masaiti,Copperbelt,BEST_GUESS,Copperbelt,-13.25991,28.40813
+Mazabuka,Southern,PROVINCE_MATCH,Southern Province,-15.85601,27.748
+Mbala,Northern,PROVINCE_MATCH,Northern Province,-8.84024,31.36587
+Milenge,Luapula,NO_MATCH,no Zambian results,-14.81667,18.96667
+Mitete,Western,NO_MATCH,no Zambian results,-9.72028,16.19111
+Mkushi,Central,PROVINCE_MATCH,Central Province,-13.62015,29.3939
+Mongu,Western,PROVINCE_MATCH,Western Province,-15.24835,23.12741
+Monze,Southern,PROVINCE_MATCH,Southern Province,-16.27149,27.47724
+Mpika,Muchinga,BEST_GUESS,Muchinga,-11.83431,31.45287
+Mpongwe,Copperbelt,BEST_GUESS,Copperbelt,-13.50914,28.15504
+Mporokoso,Northern,PROVINCE_MATCH,Northern Province,-9.37273,30.12501
+Mpulungu,Northern,PROVINCE_MATCH,Northern Province,-8.76234,31.11405
+Mufulira,Copperbelt,BEST_GUESS,Copperbelt,-12.54982,28.24071
+Mufumbwe,Northwestern,PROVINCE_MATCH,North-Western Province,-13.13701,25.00653
+Mulobezi,Western,PROVINCE_MATCH,Western Province,-16.77713,25.17622
+Mumbwa,Central,PROVINCE_MATCH,Central Province,-14.98293,27.0619
+Mungwi,Northern,PROVINCE_MATCH,Northern Province,-10.1732,31.36942
+Mushindano,Northwestern,NO_MATCH,no Zambian results,-15.42,28.28
+Mwandi,Western,PROVINCE_MATCH,Western Province,-14.41667,23.23333
+Mwansabombwe,Luapula,PROVINCE_MATCH,Luapula Province,-9.82202,28.76038
+Mwense,Luapula,PROVINCE_MATCH,Luapula Province,-10.38447,28.698
+Mwinilunga,Northwestern,PROVINCE_MATCH,North-Western Province,-11.73584,24.42926
+Nakonde,Muchinga,BEST_GUESS,Muchinga,-9.34213,32.745
+Nalolo,Western,PROVINCE_MATCH,Western Province,-15.55402,23.12797
+Namwala,Southern,PROVINCE_MATCH,Southern Province,-15.75042,26.43839
+Nchelenge,Luapula,PROVINCE_MATCH,Luapula Province,-9.34506,28.73396
+Ndola,Copperbelt,BEST_GUESS,Copperbelt,-12.95867,28.63659
+Ngabwe,Central,PROVINCE_MATCH,Central Province,-13.96667,27.31667
+Nkeyema,Western,BEST_GUESS,Eastern Province,-14.85,25.41667
+Nsama,Northern,PROVINCE_MATCH,Northern Province,-8.89447,29.96056
+Nyimba,Eastern,PROVINCE_MATCH,Eastern Province,-14.55656,30.8149
+Pemba,Southern,PROVINCE_MATCH,Southern Province,-16.51315,27.37775
+Petauke,Eastern,PROVINCE_MATCH,Eastern Province,-14.24117,31.31975
+Rufunsa,Lusaka,PROVINCE_MATCH,Lusaka Province,-15.08123,29.63579
+Samfya,Luapula,PROVINCE_MATCH,Luapula Province,-11.36491,29.55652
+Senanga,Western,PROVINCE_MATCH,Western Province,-16.11667,23.26667
+Senga Hill,Northern,PROVINCE_MATCH,Northern Province,-9.36979,31.24027
+Serenje,Central,PROVINCE_MATCH,Central Province,-13.23251,30.23522
+Sesheke,Western,PROVINCE_MATCH,Western Province,-17.47593,24.29684
+Shangombo,Western,PROVINCE_MATCH,Western Province,-16.32013,22.08722
+Shibuyunji,Central,PROVINCE_MATCH,Central Province,-15.4451,27.82894
+Shiwang'andu,Muchinga,NO_MATCH,no Zambian results,-15.42,28.28
+Siavonga,Southern,PROVINCE_MATCH,Southern Province,-16.53818,28.70876
+Sikongo,Western,PROVINCE_MATCH,Western Province,-15.03833,22.15225
+Sinazongwe,Southern,PROVINCE_MATCH,Southern Province,-17.2614,27.46179
+Sinda,Eastern,PROVINCE_MATCH,Eastern Province,-14.21004,31.7629
+Sioma,Western,PROVINCE_MATCH,Western Province,-16.66667,23.53333
+Solwezi,Northwestern,PROVINCE_MATCH,North-Western Province,-12.1688,26.38938
+Vubwi,Eastern,NO_MATCH,no Zambian results,-15.42,28.28
+Zambezi,Northwestern,PROVINCE_MATCH,North-Western Province,-13.54323,23.10467
+Zimba,Southern,PROVINCE_MATCH,Southern Province,-17.3144,26.19643
