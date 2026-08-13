@@ -5,6 +5,9 @@ import logging
 import math
 import datetime
 import requests
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_absolute_error
 from concurrent.futures import ThreadPoolExecutor
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
@@ -325,6 +328,104 @@ _DRIVER_FIELDS = {
 # correlation sample is dominated by placeholder values rather than real readings.
 _DRIVER_DEFAULTS = {'rainfall_mm': 0.0, 'avg_temperature_c': 25.0}
 
+_RF_MIN_TRAIN = 20
+_RF_MIN_TEST = 5
+_RF_FEATURE_NAMES = ['Rainfall (lagged)', 'Temperature (lagged)', 'Prior-period confirmed cases']
+
+
+def _random_forest_forecast(lag_periods):
+    """
+    Trains a RandomForestRegressor to predict a district's confirmed cases for a
+    reporting period from: rainfall and temperature `lag_periods` periods earlier
+    (the same offset the correlation panel above uses), plus the immediately prior
+    period's own confirmed-case count as an autoregressive "momentum" term.
+
+    District identity is deliberately NOT used as a feature. With only a handful of
+    records per district, one-hot-encoding 100+ districts would let the model just
+    memorize each district's baseline case level rather than learn a relationship
+    that generalizes — the same overfitting trap as fitting a line through 2 points.
+
+    Evaluated with a time-based holdout (train on every period except the most
+    recent reporting year, test only on that held-out year) rather than a random
+    split, so R²/MAE measure genuine forecasting skill on unseen future data instead
+    of in-sample fit, which a small random-forest can trivially inflate.
+
+    Returns a dict with 'available': False (plus 'n_samples') when there isn't
+    enough data for a meaningful holdout — never a model trained and evaluated on
+    the same rows.
+    """
+    records = list(
+        IntegratedMalariaData.objects
+        .order_by('district_id', 'date')
+        .values('district_id', 'district__name', 'date', 'reporting_year',
+                 'rainfall_mm', 'avg_temperature_c', 'rdt_confirmations')
+    )
+    by_district = {}
+    for r in records:
+        by_district.setdefault(r['district_id'], []).append(r)
+
+    samples = []
+    for recs in by_district.values():
+        for i in range(lag_periods, len(recs)):
+            samples.append({
+                'features': [
+                    recs[i - lag_periods]['rainfall_mm'],
+                    recs[i - lag_periods]['avg_temperature_c'],
+                    recs[i - 1]['rdt_confirmations'],
+                ],
+                'target': recs[i]['rdt_confirmations'],
+                'year': recs[i]['reporting_year'],
+                'district_name': recs[i]['district__name'],
+            })
+
+    distinct_years = sorted({s['year'] for s in samples})
+    if len(samples) < _RF_MIN_TRAIN + _RF_MIN_TEST or len(distinct_years) < 2:
+        return {'available': False, 'n_samples': len(samples)}
+
+    test_year = distinct_years[-1]
+    train_samples = [s for s in samples if s['year'] < test_year]
+    test_samples = [s for s in samples if s['year'] == test_year]
+    if len(train_samples) < _RF_MIN_TRAIN or len(test_samples) < _RF_MIN_TEST:
+        return {'available': False, 'n_samples': len(samples)}
+
+    X_train = np.array([s['features'] for s in train_samples])
+    y_train = np.array([s['target'] for s in train_samples])
+    X_test = np.array([s['features'] for s in test_samples])
+    y_test = np.array([s['target'] for s in test_samples])
+
+    # Shallow, leaf-constrained trees on purpose — with only a few hundred rows a
+    # deep unconstrained forest memorizes the training set outright.
+    model = RandomForestRegressor(
+        n_estimators=200, max_depth=6, min_samples_leaf=3, random_state=42, n_jobs=-1
+    )
+    model.fit(X_train, y_train)
+    predictions = model.predict(X_test)
+
+    importance = sorted(
+        zip(_RF_FEATURE_NAMES, model.feature_importances_), key=lambda pair: -pair[1]
+    )
+
+    # Largest actual burden first — the districts a health team would actually
+    # check the model's judgment against first.
+    per_district = sorted(
+        zip(test_samples, y_test.tolist(), predictions.tolist()),
+        key=lambda triple: -triple[1],
+    )
+
+    return {
+        'available': True,
+        'r2': r2_score(y_test, predictions),
+        'mae': mean_absolute_error(y_test, predictions),
+        'n_train': len(train_samples),
+        'n_test': len(test_samples),
+        'test_year': test_year,
+        'feature_importance': [(name, round(float(pct) * 100, 1)) for name, pct in importance],
+        'actual_vs_predicted': [
+            (s['district_name'], int(actual), round(float(pred), 1)) for s, actual, pred in per_district
+        ],
+    }
+
+
 @login_required
 def analytics_view(request):
     driver = request.GET.get('driver', 'rainfall')
@@ -383,6 +484,15 @@ def analytics_view(request):
     )
     weekly_rows.reverse()
 
+    # This NMEC-style dataset reports annually (every record sits on the epi_week=1
+    # placeholder) rather than weekly — same detection the Dashboard trend uses.
+    # Reuse it so the Random Forest section below doesn't call a 1-record lag
+    # "1 week" when it's actually a full year.
+    is_annual_cadence = len({r['epi_week'] for r in weekly_rows}) <= 1
+    cadence_unit = 'year' if is_annual_cadence else 'week'
+
+    rf = _random_forest_forecast(lag_weeks)
+
     context = {
         'driver': driver,
         'driver_label': driver_label,
@@ -400,6 +510,19 @@ def analytics_view(request):
         'chart_labels_json': json.dumps([f"W{r['epi_week']}" for r in weekly_rows]),
         'chart_driver_json': json.dumps([round(r['driver_avg'] or 0, 1) for r in weekly_rows]),
         'chart_cases_json': json.dumps([r['cases'] or 0 for r in weekly_rows]),
+        'cadence_unit': cadence_unit,
+        'rf_available': rf['available'],
+        'rf_n_samples': rf.get('n_samples'),
+        'rf_r2': f"{rf['r2']:.2f}" if rf.get('available') else None,
+        'rf_mae': f"{rf['mae']:.1f}" if rf.get('available') else None,
+        'rf_n_train': rf.get('n_train'),
+        'rf_n_test': rf.get('n_test'),
+        'rf_test_year': rf.get('test_year'),
+        'rf_feature_importance': rf.get('feature_importance'),
+        'rf_avp_shown': min(20, len(rf.get('actual_vs_predicted', []))),
+        'rf_avp_labels_json': json.dumps([d for d, _a, _p in rf.get('actual_vs_predicted', [])[:20]]),
+        'rf_avp_actual_json': json.dumps([a for _d, a, _p in rf.get('actual_vs_predicted', [])[:20]]),
+        'rf_avp_predicted_json': json.dumps([p for _d, _a, p in rf.get('actual_vs_predicted', [])[:20]]),
     }
     return render(request, 'analytics.html', context)
 

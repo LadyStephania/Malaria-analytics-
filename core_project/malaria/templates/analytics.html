@@ -110,8 +110,8 @@
 </div>
 
 <!-- Technical Summary -->
-<div class="premium-card">
-    <h5 class="fw-bold text-secondary mb-2" style="font-size: 1rem;">Model Methodology</h5>
+<div class="premium-card mb-4">
+    <h5 class="fw-bold text-secondary mb-2" style="font-size: 1rem;">Correlation Model Methodology</h5>
     <p class="text-muted small mb-0" style="line-height: 1.6;">
         This view computes a <strong>Pearson correlation coefficient (r)</strong> between the selected environmental
         driver and RDT-confirmed case counts, offset by the chosen lag window to approximate the mosquito
@@ -121,6 +121,123 @@
         environmental variables and time offsets.
     </p>
 </div>
+
+<!-- Random Forest Ensemble Forecast -->
+<div class="mb-3 mt-5">
+    <span class="text-primary fw-bold text-uppercase small" style="font-size: 0.8rem; letter-spacing: 0.05em;">Ensemble Machine Learning</span>
+    <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.5px;">Random Forest Case Forecast</h2>
+    <p class="text-muted small mb-0">
+        Combines lagged rainfall, lagged temperature, and each district's own prior-period case count into one
+        model — unlike the single-variable correlation above, which looks at one driver at a time.
+    </p>
+</div>
+
+{% if not rf_available %}
+<div class="alert alert-warning border-0 rounded-3 mb-4">
+    <i class="bi bi-info-circle-fill me-1"></i>
+    <strong>Not enough reporting history yet to train and honestly evaluate a forest.</strong>
+    This lag window produces {{ rf_n_samples }} usable sample(s), but a trustworthy forecast needs enough
+    prior-year data to train on <em>and</em> a full held-out {{ cadence_unit }} to test against — training and
+    testing on the same rows would let the model just memorize them. Upload more reporting history, or try a
+    shorter lag window, to enable this section.
+</div>
+{% else %}
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 d-flex flex-column justify-content-between">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Out-of-Sample R²</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ rf_r2 }}</h3>
+            </div>
+            <div class="mt-3 small text-success fw-semibold d-flex align-items-center gap-1">
+                <i class="bi bi-graph-up-arrow"></i>
+                Evaluated on {{ rf_test_year }} only — a full {{ cadence_unit }} the model never trained on
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 d-flex flex-column justify-content-between">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Mean Absolute Error</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">±{{ rf_mae }}</h3>
+            </div>
+            <div class="mt-3 small text-muted fw-semibold d-flex align-items-center gap-1">
+                <i class="bi bi-rulers"></i>
+                Average confirmed-case miss, in either direction, on {{ rf_test_year }}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 d-flex flex-column justify-content-between">
+            <div>
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Train / Test Split</span>
+                <h3 class="fw-bold mb-0 text-dark" style="font-size: 2rem; letter-spacing: -0.5px;">{{ rf_n_train }} / {{ rf_n_test }}</h3>
+            </div>
+            <div class="mt-3 small text-warning fw-semibold d-flex align-items-center gap-1">
+                <i class="bi bi-clock-history"></i>
+                Trained on every {{ cadence_unit }} before {{ rf_test_year }}, tested only on {{ rf_test_year }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-12 col-lg-5">
+        <div class="premium-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-bar-chart-steps text-primary"></i> Feature Importance
+                </h5>
+            </div>
+            {% for name, pct in rf_feature_importance %}
+            <div class="mb-2">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span class="fw-semibold text-dark">{{ name }}</span>
+                    <span class="text-muted">{{ pct }}%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-primary" style="width: {{ pct }}%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+            <p class="text-muted mt-3 mb-0" style="font-size: 0.72rem;">
+                How much each input reduced prediction error across the forest's trees. District identity is not a
+                feature — with only a few records per district, the model would otherwise just memorize each
+                district's baseline instead of learning a transferable pattern.
+            </p>
+        </div>
+    </div>
+    <div class="col-12 col-lg-7">
+        <div class="premium-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-check2-square text-primary"></i> Predicted vs. Actual — {{ rf_test_year }}
+                </h5>
+                <span class="badge bg-light text-secondary border p-2 fw-medium">Top {{ rf_avp_shown }} of {{ rf_n_test }} Districts</span>
+            </div>
+            <div style="position: relative; height: 280px; width: 100%;">
+                <canvas id="rfActualVsPredictedChart"></canvas>
+            </div>
+            <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
+                Ranked by actual confirmed cases, highest first — the districts a response team would check the
+                model's judgment against first.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="premium-card mb-4">
+    <h5 class="fw-bold text-secondary mb-2" style="font-size: 1rem;">Random Forest Methodology</h5>
+    <p class="text-muted small mb-0" style="line-height: 1.6;">
+        A <strong>Random Forest Regressor</strong> (200 trees, depth-limited to guard against overfitting on a
+        dataset this size) is trained to predict a district's confirmed cases from rainfall and temperature lagged
+        by the same window selected above, plus that district's own prior-period case count. Unlike the correlation
+        panel, it's evaluated with a <strong>time-based holdout</strong> — trained only on {{ cadence_unit }}s before
+        {{ rf_test_year }}, then scored strictly on {{ rf_test_year }}, data it never saw during training — so the R²
+        and MAE above reflect genuine forecasting skill on unseen data, not fit to data it already memorized.
+    </p>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -181,6 +298,40 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
     });
+
+    // ---- Random Forest: Predicted vs. Actual (held-out year) ----
+    const rfCanvas = document.getElementById('rfActualVsPredictedChart');
+    if (rfCanvas) {
+        new Chart(rfCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: {{ rf_avp_labels_json|default:"[]"|safe }},
+                datasets: [
+                    {
+                        label: 'Actual Confirmed Cases',
+                        data: {{ rf_avp_actual_json|default:"[]"|safe }},
+                        backgroundColor: 'rgba(220, 53, 69, 0.75)',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Random Forest Prediction',
+                        data: {{ rf_avp_predicted_json|default:"[]"|safe }},
+                        backgroundColor: 'rgba(13, 110, 253, 0.55)',
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
+                scales: {
+                    x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 60, font: { size: 10 } } },
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
+                }
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
