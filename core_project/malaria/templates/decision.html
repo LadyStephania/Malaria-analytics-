@@ -2,16 +2,6 @@
 {% block title %}Decision Support | Malaria Insights{% endblock %}
 {% block content %}
 <style>
-    .alert-banner-box {
-        border-radius: 16px;
-        padding: 28px;
-        color: #ffffff;
-        margin-bottom: 28px;
-    }
-    .alert-banner-box.badge-danger { background: linear-gradient(90deg, #dc3545 0%, #b02a37 100%); box-shadow: 0 10px 25px -5px rgba(220, 53, 69, 0.15); }
-    .alert-banner-box.badge-warning { background: linear-gradient(90deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.15); }
-    .alert-banner-box.badge-success { background: linear-gradient(90deg, #16a34a 0%, #15803d 100%); box-shadow: 0 10px 25px -5px rgba(22, 163, 74, 0.15); }
-
     .directive-quote-box {
         background-color: #f8fafc;
         border-left: 4px solid #dc3545;
@@ -151,46 +141,6 @@
 </div>
 
 {% if has_data %}
-<div class="d-flex align-items-center gap-2 mb-2 mt-1">
-    <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">
-        Detail View{% if auto_selected %} — Auto-Selected (Top Priority){% endif %}
-    </span>
-    <hr class="flex-grow-1 m-0" style="border-color: var(--border, #e2e8f0);">
-</div>
-
-<!-- 1. Executive Threat Classification Banner -->
-<div class="alert-banner-box badge-{{ risk_badge }}">
-    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
-        <span style="font-size: 2rem;">{{ tier_icon }}</span>
-        <div>
-            <span style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; color: rgba(255,255,255,0.8);">Combined Forecast + Case-Burden Classification — {{ target_label }}</span>
-            <h3 style="font-size: 1.5rem; font-weight: 700; margin: 4px 0; letter-spacing: -0.5px;">{{ risk_level }}</h3>
-        </div>
-    </div>
-    <div style="font-size: 0.82rem; color: rgba(255,255,255,0.85); border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px; margin-top: 12px;">
-        ⚠️ <strong>Basis:</strong>
-        {{ recent_cases }} confirmed case(s) as of {{ reference_date }} ({{ burden_label }}{% if incidence_per_10k is not None %}, {{ incidence_per_10k }} per 10,000{% endif %})
-        {% if forecast_available %}+ live 7-day weather forecast ({{ danger_days_7 }} high-risk / {{ warning_days_7 }} moderate day(s)).{% else %}— forecast currently unavailable, classification based on case burden only.{% endif %}
-    </div>
-</div>
-
-{% if history_count > 1 %}
-<div class="premium-card mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-            <i class="bi bi-graph-up text-primary"></i> Full Reporting History — {{ target_label }}
-        </h5>
-        <span class="badge bg-light text-secondary border p-2 fw-medium">{{ history_count }} Period{{ history_count|pluralize }} on Record</span>
-    </div>
-    <div style="position: relative; height: 260px; width: 100%;">
-        <canvas id="districtHistoryChart"></canvas>
-    </div>
-    <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
-        Every reporting period on file for {{ target_label }}, oldest to newest — annual imports are labeled by year,
-        weekly reports by epi week, since a single district can carry both.
-    </p>
-</div>
-{% endif %}
 
 {% if forecast_preview %}
 <div class="premium-card mb-4">
@@ -313,35 +263,4 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 </script>
-{% if history_count > 1 %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const ctx = document.getElementById('districtHistoryChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: {{ history_labels_json|safe }},
-            datasets: [
-                {
-                    label: 'Confirmed Cases (RDT)',
-                    data: {{ history_confirmed_json|safe }},
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220, 53, 69, 0.06)',
-                    borderWidth: 3,
-                    tension: 0.3,
-                    fill: true
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
-            scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
-        }
-    });
-});
-</script>
-{% endif %}
 {% endblock %}

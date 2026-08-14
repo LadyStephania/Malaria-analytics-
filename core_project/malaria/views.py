@@ -1118,7 +1118,19 @@ def _recent_case_burden(district):
     periods (not a single latest date — one week's count is too small/noisy to
     classify against the same incidence thresholds the Dashboard uses on
     cumulative totals). Returns (recent_cases, prior_cases_or_None, reference_date,
-    current_window_len, burden_label, burden_badge, incidence_or_None).
+    current_window_len, burden_label, burden_badge, incidence_or_None,
+    prior_window_len).
+
+    prior_cases is only meaningful as a like-for-like comparison against
+    recent_cases when prior_window_len == _BURDEN_WINDOW — with fewer total
+    reporting periods on file than 2x the window (true for every district in
+    an annual dataset with only ~5 years on record), the "prior window" is
+    whatever's left over, which can be as little as a single period. Comparing
+    a genuine _BURDEN_WINDOW-period sum against a partial 1-period leftover and
+    calling both "N-period windows" would wildly overstate the swing (e.g. 4
+    years of cumulative cases vs. a single older year, mislabeled as
+    comparable). Callers must check prior_window_len before trusting the
+    rising/falling comparison, not just whether prior_cases is None.
     """
     records = list(
         IntegratedMalariaData.objects
@@ -1134,36 +1146,10 @@ def _recent_case_burden(district):
     prior_cases = sum(r['rdt_confirmations'] for r in prior_window) if prior_window else None
 
     burden_label, burden_badge, incidence = _classify_burden(recent_cases, district.population)
-    return recent_cases, prior_cases, reference_date, len(current_window), burden_label, burden_badge, incidence
-
-
-def _district_history(district):
-    """
-    Full reporting history for one district, oldest -> newest — every period on
-    record, not just the rolling burden window above — for the per-district trend
-    chart. Labels adapt per point: a record sitting on the epi_week=1 placeholder
-    (e.g. an annual NMEC/DHIS2 import with no real week) is labeled by year alone;
-    a record with real week granularity is labeled "W<n> '<yy>". A single district
-    can carry both kinds side by side (e.g. annual history backfilled behind more
-    recent weekly reporting), so the label is decided per-record, not per-dataset.
-    """
-    records = list(
-        IntegratedMalariaData.objects
-        .filter(district=district)
-        .order_by('date')
-        .values('date', 'epi_week', 'reporting_year', 'rdt_confirmations')
+    return (
+        recent_cases, prior_cases, reference_date, len(current_window),
+        burden_label, burden_badge, incidence, len(prior_window),
     )
-    labels = []
-    for r in records:
-        if r['epi_week'] == 1 and r['date'].month == 1 and r['date'].day == 1:
-            labels.append(str(r['reporting_year']))
-        else:
-            labels.append(f"W{r['epi_week']} '{str(r['reporting_year'])[-2:]}")
-    return {
-        'labels': labels,
-        'confirmed': [r['rdt_confirmations'] for r in records],
-        'count': len(records),
-    }
 
 
 def _district_priority_queue():
@@ -1180,7 +1166,7 @@ def _district_priority_queue():
     # any district with no reporting history yet.
     burden_by_id = {}
     for d in districts:
-        recent_cases, _prior_cases, reference_date, _window_len, _burden_label, burden_badge, incidence = _recent_case_burden(d)
+        recent_cases, _prior_cases, reference_date, _window_len, _burden_label, burden_badge, incidence, _prior_window_len = _recent_case_burden(d)
         if reference_date is None:
             continue
         burden_by_id[d.id] = {
@@ -1277,16 +1263,21 @@ def decision_view(request):
         })
 
     target_label = selected_district.name
-    history = _district_history(selected_district)
 
     # Case burden over a rolling window (not a single latest date — see
     # _recent_case_burden's docstring); same helper the priority queue uses above,
     # so the queue and this detail panel always agree on the same district's tier.
-    recent_cases, prior_cases, reference_date, window_len, burden_label, burden_badge, incidence = _recent_case_burden(selected_district)
+    recent_cases, prior_cases, reference_date, window_len, burden_label, burden_badge, incidence, prior_window_len = _recent_case_burden(selected_district)
     burden_rank = _RISK_RANK[burden_badge]
 
-    if prior_cases is None:
-        trend_text, trend_icon, trend_class = 'Not enough reporting history yet for a period-over-period trend', '', 'text-muted'
+    # Only a genuine like-for-like comparison when the prior window is fully
+    # populated with _BURDEN_WINDOW periods too — a partial leftover window
+    # (e.g. just 1 period, the norm with only ~5 years on record per district)
+    # isn't comparable to a full _BURDEN_WINDOW-period sum and would overstate
+    # the swing (a 4-year cumulative total vs. a single older year, both
+    # mislabeled as "4-period windows").
+    if prior_cases is None or prior_window_len < _BURDEN_WINDOW:
+        trend_text, trend_icon, trend_class = 'Not enough reporting history yet for a fair period-over-period comparison', '', 'text-muted'
     elif recent_cases > prior_cases:
         trend_text = f'Rising vs prior {_BURDEN_WINDOW}-period window ({prior_cases} → {recent_cases} cases)'
         trend_icon, trend_class = '▲', 'text-danger'
@@ -1378,9 +1369,6 @@ def decision_view(request):
         'forecast_preview': forecast_days[:7] if forecast_days else [],
         'danger_days_7': danger_days_7,
         'warning_days_7': forecast_summary['warning_days_7'] if forecast_summary else 0,
-        'history_count': history['count'],
-        'history_labels_json': json.dumps(history['labels']),
-        'history_confirmed_json': json.dumps(history['confirmed']),
     }
     return render(request, 'decision.html', context)
 
