@@ -24,30 +24,6 @@
         margin-top: 15px;
     }
 
-    .tactical-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background-color: #f8fafc;
-        border: 1px solid var(--border, #e2e8f0);
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 16px;
-        transition: all 0.2s ease;
-    }
-    .tactical-row:hover {
-        background-color: #ffffff;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04);
-        border-color: #cbd5e1;
-    }
-
-    .indicator-pillar {
-        width: 6px;
-        height: 44px;
-        border-radius: 4px;
-        margin-right: 16px;
-        flex-shrink: 0;
-    }
 
     .meta-list-block {
         background-color: #f8fafc;
@@ -231,7 +207,7 @@
 {% endif %}
 
 <!-- 2. Directive Text Output -->
-<div class="premium-card">
+<div class="premium-card mb-4">
     <div class="d-flex justify-content-between align-items-center mb-1">
         <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--muted); display: block;">Algorithmic System Action Output</span>
         {% if trend_icon %}
@@ -245,55 +221,77 @@
     </div>
 </div>
 
-<!-- 3. Dynamic Side-by-Side Layout -->
-<div class="row g-4">
-    <!-- Left: Action Checklist -->
-    <div class="col-12 col-lg-8">
-        <div class="premium-card">
-            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-list-check text-primary me-2"></i>Tactical Response Checklist</h5>
-            {% for title, detail, tone in checklist %}
-            <div class="tactical-row">
-                <div class="d-flex align-items-center">
-                    <div class="indicator-pillar bg-{{ tone }}"></div>
-                    <div>
-                        <div class="fw-semibold text-dark">{{ title }}</div>
-                        <div class="text-muted small">{{ detail }}</div>
-                    </div>
-                </div>
-                <span class="badge bg-{{ tone }} bg-opacity-10 text-{{ tone }} border border-{{ tone }} border-opacity-25 p-2">{{ tone|upper }}</span>
-            </div>
-            {% endfor %}
-        </div>
+<!-- 3. Response Options — side-by-side comparison grid -->
+<div class="premium-card p-0 overflow-hidden mb-4">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+        <h5 class="fw-bold text-dark m-0"><i class="bi bi-grid-3x3-gap-fill text-primary me-2"></i>Response Options — {{ target_label }}</h5>
+        <span class="badge bg-light text-secondary border p-2 fw-medium">{{ checklist|length }} Action{{ checklist|length|pluralize }}</span>
     </div>
+    <div class="table-responsive">
+        <table class="table align-middle m-0" style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th class="bg-light text-muted text-uppercase align-middle" style="font-size: 0.68rem; min-width: 170px;">Response Questions</th>
+                    {% for title, what, why, tone in checklist %}
+                    <th class="align-middle {% if tone == 'warning' %}text-dark{% else %}text-white{% endif %} bg-{{ tone }}" style="min-width: 220px;">{{ title }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="bg-light fw-semibold text-muted">What does this involve?</td>
+                    {% for title, what, why, tone in checklist %}
+                    <td>{{ what }}</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <td class="bg-light fw-semibold text-muted">Why now?</td>
+                    {% for title, what, why, tone in checklist %}
+                    <td class="text-muted">{{ why }}</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <td class="bg-light fw-semibold text-muted">Priority</td>
+                    {% for title, what, why, tone in checklist %}
+                    <td>
+                        <span class="badge bg-{{ tone }} bg-opacity-10 text-{{ tone }} border border-{{ tone }} border-opacity-25">
+                            {% if tone == 'danger' %}Critical{% elif tone == 'warning' %}High{% elif tone == 'success' %}Low{% else %}Routine{% endif %}
+                        </span>
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
-    <!-- Right: Supporting Metadata -->
-    <div class="col-12 col-lg-4">
-        <div class="premium-card h-100">
-            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-clipboard-data text-primary me-2"></i>Model Input Snapshot</h5>
-            <div class="meta-list-block d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted small fw-normal">District</span>
-                <span>{{ target_label }}</span>
-            </div>
-            <div class="meta-list-block d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted small fw-normal">Reference Date</span>
-                <span>{{ reference_date|default:"N/A" }}</span>
-            </div>
-            <div class="meta-list-block d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted small fw-normal">Confirmed Cases</span>
-                <span>{{ recent_cases }}</span>
-            </div>
-            <div class="meta-list-block d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted small fw-normal">Case Burden Tier</span>
-                <span>{{ burden_label }}</span>
-            </div>
-            <div class="meta-list-block d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted small fw-normal">Incidence /10k</span>
-                <span>{% if incidence_per_10k is not None %}{{ incidence_per_10k }}{% else %}Population not on file{% endif %}</span>
-            </div>
-            <div class="meta-list-block d-flex justify-content-between align-items-center">
-                <span class="text-muted small fw-normal">Forecast (next 7 days)</span>
-                <span>{% if forecast_available %}{{ danger_days_7 }} high-risk / {{ warning_days_7 }} moderate{% else %}Unavailable{% endif %}</span>
-            </div>
+<!-- 4. Model Input Snapshot -->
+<div class="premium-card">
+    <h5 class="fw-bold text-dark mb-3"><i class="bi bi-clipboard-data text-primary me-2"></i>Model Input Snapshot</h5>
+    <div class="d-flex flex-wrap gap-3">
+        <div class="meta-list-block flex-fill" style="min-width: 140px;">
+            <span class="text-muted small fw-normal d-block">District</span>
+            <span>{{ target_label }}</span>
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;">
+            <span class="text-muted small fw-normal d-block">Reference Date</span>
+            <span>{{ reference_date|default:"N/A" }}</span>
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;">
+            <span class="text-muted small fw-normal d-block">Confirmed Cases</span>
+            <span>{{ recent_cases }}</span>
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;">
+            <span class="text-muted small fw-normal d-block">Case Burden Tier</span>
+            <span>{{ burden_label }}</span>
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;">
+            <span class="text-muted small fw-normal d-block">Incidence /10k</span>
+            <span>{% if incidence_per_10k is not None %}{{ incidence_per_10k }}{% else %}Population not on file{% endif %}</span>
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;">
+            <span class="text-muted small fw-normal d-block">Forecast (next 7 days)</span>
+            <span>{% if forecast_available %}{{ danger_days_7 }} high-risk / {{ warning_days_7 }} moderate{% else %}Unavailable{% endif %}</span>
         </div>
     </div>
 </div>

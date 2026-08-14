@@ -1314,10 +1314,10 @@ def decision_view(request):
             f'point to compounding risk in {target_label} — spray, distribute nets, and staff up for treatment immediately.'
         )
         checklist = [
-            (f'Spray — Indoor Residual Spraying (IRS) in {target_label}', f'Dispatch full-coverage spraying within 24–48h; {danger_days_7} of the next 7 forecast days meet critical breeding thresholds', 'danger'),
-            (f'Distribute Mosquito Nets (LLINs) in {target_label}', 'House-to-house distribution to every household, prioritizing under-5 and pregnant-women households', 'danger'),
-            ('Clinical Surge Readiness', f'{recent_cases} confirmed cases in the last {window_len} reporting period(s) — verify RDT/ACT stock and staffing', 'danger'),
-            ('Larval Source Management', 'Target standing-water breeding sites identified ahead of the forecast wet window', 'warning'),
+            (f'Spray — IRS in {target_label}', 'Dispatch full-coverage indoor residual spraying teams to every household within 24–48h.', f'{danger_days_7} of the next 7 forecast days meet critical breeding thresholds, compounding an already high case count.', 'danger'),
+            (f'Distribute Nets (LLINs) in {target_label}', 'House-to-house distribution of long-lasting insecticidal nets to every household.', 'Prioritize under-5 and pregnant-women households first, given the active outbreak.', 'danger'),
+            ('Clinical Surge Readiness', 'Verify RDT and antimalarial (ACT) stock levels and staffing at every facility.', f'{recent_cases} confirmed cases in the last {window_len} reporting period(s) means treatment demand is already elevated.', 'danger'),
+            ('Larval Source Management', 'Identify and treat standing-water mosquito breeding sites near population centers.', 'Ahead of the forecast wet window — cuts the next generation of mosquitoes before they emerge.', 'warning'),
         ]
     elif tier == 'active':
         recommended_action = (
@@ -1326,10 +1326,10 @@ def decision_view(request):
             f'spraying and net distribution to cut transmission, alongside case management.'
         )
         checklist = [
-            (f'Spray — Indoor Residual Spraying (IRS) in {target_label}', 'Deploy spraying to affected areas now to contain the ongoing outbreak', 'danger'),
-            (f'Distribute Mosquito Nets (LLINs) in {target_label}', 'Distribute nets to affected households to reduce ongoing transmission', 'danger'),
-            ('Case Management Surge', f'{recent_cases} confirmed cases in the last {window_len} reporting period(s) — verify treatment capacity', 'danger'),
-            ('Community Case Surveillance', 'Increase active case-finding to contain spread', 'warning'),
+            (f'Spray — IRS in {target_label}', 'Deploy indoor residual spraying teams to the affected areas now.', 'An active outbreak is already underway and needs containing, even though the forecast is calmer.', 'danger'),
+            (f'Distribute Nets (LLINs) in {target_label}', 'Distribute long-lasting insecticidal nets to affected households.', 'Reduces ongoing transmission while the outbreak is brought under control.', 'danger'),
+            ('Case Management Surge', 'Verify treatment capacity (RDT/ACT stock, staffing) at facilities serving the district.', f'{recent_cases} confirmed cases in the last {window_len} reporting period(s) — demand is already elevated.', 'danger'),
+            ('Community Case Surveillance', 'Increase active case-finding in the community.', 'Catches cases the routine reporting system might miss, containing spread.', 'warning'),
         ]
     elif tier == 'preemptive':
         recommended_action = (
@@ -1338,21 +1338,21 @@ def decision_view(request):
             f'spray and distribute nets now, before cases spike.'
         )
         checklist = [
-            (f'Spray — Pre-Emptive IRS in {target_label}', f'{danger_days_7} of the next 7 forecast days meet critical breeding thresholds — spray ahead of them', 'warning'),
-            (f'Distribute Mosquito Nets (LLINs) in {target_label}', 'Top up and distribute nets ahead of the forecast wet window, before transmission rises', 'warning'),
-            ('Baseline Surveillance', f'Only {recent_cases} confirmed cases in the last {window_len} reporting period(s) — maintain standard monitoring while prevention deploys', 'secondary'),
+            (f'Spray — Pre-Emptive IRS in {target_label}', 'Spray ahead of the forecast wet window, before breeding conditions peak.', f'{danger_days_7} of the next 7 forecast days meet critical breeding thresholds.', 'warning'),
+            (f'Distribute Nets (LLINs) in {target_label}', 'Top up and distribute long-lasting insecticidal nets to households.', 'Cases are still low — this is prevention, getting ahead of the forecast before transmission rises.', 'warning'),
+            ('Baseline Surveillance', 'Maintain the standard weekly case and rainfall monitoring cadence.', f'Only {recent_cases} confirmed cases in the last {window_len} reporting period(s) — no active outbreak yet.', 'secondary'),
         ]
     elif tier == 'watch':
         recommended_action = f'Forecast and case data for {target_label} are both moderate — increase monitoring frequency without full deployment.'
         checklist = [
-            ('Increase Monitoring Frequency', 'Move to twice-weekly case and rainfall review', 'warning'),
-            ('Stock Readiness Check', 'Confirm IRS/LLIN reserves are positioned for rapid deployment', 'secondary'),
+            ('Increase Monitoring Frequency', 'Move from standard to twice-weekly case and rainfall review.', 'Forecast and case data are both moderate — not urgent yet, but worth watching more closely.', 'warning'),
+            ('Stock Readiness Check', 'Confirm IRS/LLIN reserves are positioned for rapid deployment.', 'So the district can respond quickly if conditions worsen.', 'secondary'),
         ]
     else:
         recommended_action = f'Forecast and confirmed case data are both calm for {target_label} — maintain routine surveillance.'
         checklist = [
-            ('Routine Surveillance', 'Continue standard weekly reporting cadence', 'success'),
-            ('Preventive Maintenance', 'Service existing IRS/LLIN stock for readiness', 'secondary'),
+            ('Routine Surveillance', 'Continue the standard weekly reporting cadence.', 'Forecast and confirmed case data are both calm right now.', 'success'),
+            ('Preventive Maintenance', 'Service existing IRS/LLIN stock.', 'Keeps readiness up during the quiet period.', 'secondary'),
         ]
 
     context = {
