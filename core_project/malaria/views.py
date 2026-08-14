@@ -108,6 +108,108 @@ def _province_populations():
     return {row['province']: row['population'] or 0 for row in rollup}
 
 
+# ---- Getis-Ord Gi* hotspot detection ----
+# We only have district centroids (latitude/longitude), not polygon boundaries —
+# there's no shapefile in this project — so "neighbor" can't mean shares-a-border
+# the way GIS hot-spot tools usually define it. K-nearest-neighbor weights (each
+# district's k closest other districts by straight-line distance) are the
+# standard substitute when only point locations are available, and are one of
+# the built-in weighting options in real GIS hot-spot tools (e.g. ArcGIS's own
+# Hot Spot Analysis) precisely for this situation.
+_GI_STAR_BANDS = [
+    (1.65, None),
+    (1.96, '90% confidence'),
+    (2.58, '95% confidence'),
+    (float('inf'), '99% confidence'),
+]
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """Great-circle distance in km between two lat/lon points."""
+    r = 6371.0088
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _confidence_label(abs_z):
+    for ceiling, label in _GI_STAR_BANDS:
+        if abs_z < ceiling:
+            return label
+    return '99% confidence'
+
+
+def _getis_ord_gi_star(points, k=6):
+    """
+    points: list of {'id', 'name', 'lat', 'lon', 'value'} — one per district,
+    'value' being whatever's being tested for clustering (incidence per 10,000
+    here). Returns the same list with 'z_score', 'p_value', 'tier'
+    ('hot'/'cold'/'not_significant'), and 'confidence' (None or a confidence
+    label) added per point.
+
+    Method: binary k-nearest-neighbor spatial weights (w_ij = 1 if j is one of
+    i's k nearest neighbors by great-circle distance, or j == i; 0 otherwise —
+    Gi*, unlike plain Gi, includes the location itself in its own neighborhood).
+    For each location i:
+
+        Gi* = [ sum(x_j for j in N(i)) - x_bar * W_i ]
+              / ( S * sqrt( (n*W_i - W_i^2) / (n-1) ) )
+
+    where W_i = |N(i)| = k+1 for every i (binary weights, so sum(w_ij) ==
+    sum(w_ij^2) == W_i), x_bar/S are the global mean/population-std-dev of the
+    analysis variable, and n is the number of locations. This is the standard
+    Getis-Ord Gi* statistic — a z-score: values further from 0 than +-1.65/
+    +-1.96/+-2.58 indicate the location's own value AND its neighbors' values
+    are consistently high (hot spot) or low (cold spot) at 90/95/99%
+    confidence — a real statistical claim about spatial clustering, not just
+    "this one point looks high."
+    """
+    n = len(points)
+    if n < k + 2:
+        return None  # not enough locations for k neighbors + a meaningful comparison set
+
+    values = [p['value'] for p in points]
+    x_bar = sum(values) / n
+    variance = sum((v - x_bar) ** 2 for v in values) / n  # population variance
+    s = math.sqrt(variance)
+    if s == 0:
+        return None  # every location has the identical value — no variation to cluster
+
+    # k nearest neighbors per point, by great-circle distance.
+    neighbor_sets = []
+    for i, p in enumerate(points):
+        dists = sorted(
+            ((j, _haversine_km(p['lat'], p['lon'], q['lat'], q['lon'])) for j, q in enumerate(points) if j != i),
+            key=lambda pair: pair[1]
+        )
+        neighbor_idx = {j for j, _dist in dists[:k]}
+        neighbor_idx.add(i)  # Gi* includes the location itself
+        neighbor_sets.append(neighbor_idx)
+
+    results = []
+    for i, p in enumerate(points):
+        w_i = len(neighbor_sets[i])
+        local_sum = sum(values[j] for j in neighbor_sets[i])
+        numerator = local_sum - x_bar * w_i
+        denominator = s * math.sqrt((n * w_i - w_i ** 2) / (n - 1))
+        z = numerator / denominator if denominator else 0.0
+        p_value = 2 * (1 - _norm_cdf(abs(z)))
+
+        abs_z = abs(z)
+        if abs_z < 1.65:
+            tier, confidence = 'not_significant', None
+        elif z > 0:
+            tier, confidence = 'hot', _confidence_label(abs_z)
+        else:
+            tier, confidence = 'cold', _confidence_label(abs_z)
+
+        results.append({**p, 'z_score': round(z, 2), 'p_value': round(p_value, 4), 'tier': tier, 'confidence': confidence})
+
+    return results
+
+
 def _fetch_forecast_days(lat, lon):
     """
     Returns a list of up to 14 {date, rain, temp, badge} dicts — the raw daily
@@ -413,6 +515,73 @@ def year_breakdown_view(request, year):
         'province_rows': province_rows,
     }
     return render(request, 'year_breakdown.html', context)
+
+# ================= 3c. STATISTICAL HOTSPOT DETECTION (GETIS-ORD GI*) =================
+_GI_K_OPTIONS = range(4, 11)
+_GI_DEFAULT_K = 6
+
+
+@login_required
+def hotspot_view(request):
+    try:
+        k = int(request.GET.get('k', _GI_DEFAULT_K))
+    except (TypeError, ValueError):
+        k = _GI_DEFAULT_K
+    k = max(4, min(10, k))
+
+    # Same cumulative population-adjusted incidence the Dashboard hotspot map
+    # and Decision Support use, so this view's "hot spot" and the simple
+    # threshold map's "high burden" are directly comparable, not two
+    # unrelated numbers.
+    district_rollup = (
+        IntegratedMalariaData.objects
+        .values('district_id', 'district__name', 'district__latitude', 'district__longitude', 'district__population')
+        .annotate(cases=Sum('rdt_confirmations'))
+    )
+
+    points = []
+    for row in district_rollup:
+        population = row['district__population'] or 0
+        if population <= 0 or row['district__latitude'] is None or row['district__longitude'] is None:
+            continue  # Gi* needs a real value and a real location for every point — can't include a district missing either
+        cases = row['cases'] or 0
+        incidence = round(cases / population * 10000, 1)
+        points.append({
+            'id': row['district_id'],
+            'name': row['district__name'],
+            'lat': row['district__latitude'],
+            'lon': row['district__longitude'],
+            'value': incidence,
+            'cases': cases,
+            'population': population,
+        })
+
+    results = _getis_ord_gi_star(points, k=k) if points else None
+    excluded_count = district_rollup.count() - len(points)
+
+    if results:
+        results.sort(key=lambda r: -abs(r['z_score']))
+        hot_spots = [r for r in results if r['tier'] == 'hot']
+        cold_spots = [r for r in results if r['tier'] == 'cold']
+        tier_color = {'hot': '#dc3545', 'cold': '#0d6efd', 'not_significant': '#94a3b8'}
+        for r in results:
+            r['color'] = tier_color[r['tier']]
+    else:
+        hot_spots, cold_spots = [], []
+
+    context = {
+        'k': k,
+        'k_options': _GI_K_OPTIONS,
+        'results': results,
+        'results_json': json.dumps(results) if results else '[]',
+        'hot_spots': hot_spots,
+        'cold_spots': cold_spots,
+        'n_analyzed': len(points),
+        'n_excluded': excluded_count,
+        'n_not_significant': len(points) - len(hot_spots) - len(cold_spots),
+        'has_data': bool(results),
+    }
+    return render(request, 'hotspot_analysis.html', context)
 
 # ================= 4. ANALYTICS CORRELATION ENGINE VIEW =================
 _DRIVER_FIELDS = {

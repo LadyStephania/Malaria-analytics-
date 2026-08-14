@@ -11,6 +11,7 @@ urlpatterns = [
     path('analytics/monthly-estimate/', views.monthly_estimate_view, name='monthly_estimate'),
     path('analytics/monthly-estimate.csv', views.monthly_estimate_csv_view, name='monthly_estimate_csv'),
     path('data-quality/', views.data_quality_view, name='data_quality'),
+    path('hotspot-analysis/', views.hotspot_view, name='hotspot_analysis'),
     path('decision-support/', views.decision_view, name='decision'),
     path('weather-forecast/', views.weather_view, name='weather'),
     path('upload-data/', views.upload_view, name='upload'),
