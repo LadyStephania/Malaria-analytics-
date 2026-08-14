@@ -1,16 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}Analytics | Malaria Insights{% endblock %}
 {% block content %}
-<div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
-    <div>
-        <h2 class="fw-bold text-dark m-0">Weather &amp; Malaria Cases</h2>
-        <p class="text-muted small mb-0">Does rainfall or temperature predict confirmed cases a few {{ cadence_unit }}s later? This page checks the data and explains what it finds.</p>
-    </div>
-    {% if cadence_unit == 'year' %}
-    <a href="{% url 'monthly_estimate' %}" class="btn btn-sm btn-outline-secondary flex-shrink-0">
-        <i class="bi bi-calendar3 me-1"></i>Estimate a Monthly Breakdown
-    </a>
-    {% endif %}
+<div class="mb-4">
+    <h2 class="fw-bold text-dark m-0">Weather &amp; Malaria Cases</h2>
+    <p class="text-muted small mb-0">Does rainfall or temperature predict confirmed cases a few {{ cadence_unit }}s later? This page checks the data and explains what it finds.</p>
 </div>
 
 {% if weather_unavailable %}
@@ -39,6 +32,8 @@
 
 <!-- Driver + Lag Controls -->
 <form method="get" class="premium-card d-flex flex-wrap align-items-center gap-3 mb-4">
+    {% if md_selected_district %}<input type="hidden" name="district_id" value="{{ md_selected_district.id }}">{% endif %}
+    {% if md_selected_year %}<input type="hidden" name="year" value="{{ md_selected_year }}">{% endif %}
     <div class="d-flex align-items-center gap-2">
         <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Compare</label>
         <select name="driver" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
@@ -189,6 +184,62 @@
 </div>
 {% endif %}
 
+{% if cadence_unit == 'year' and md_districts %}
+<!-- Estimated monthly breakdown, collapsed by default — same "annual-only data"
+     context as the rest of this page, so it lives here instead of a separate page. -->
+<details class="premium-card mt-2 mb-2">
+    <summary class="fw-semibold text-dark d-flex align-items-center gap-2" style="cursor: pointer;">
+        <i class="bi bi-calendar3 text-primary"></i> Estimate a Monthly Breakdown
+    </summary>
+    <div class="mt-3">
+        <p class="text-muted small">
+            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+            <strong>Not real data.</strong> NMEC records here report annually only — this splits a real annual
+            total across 12 months using Zambia's typical malaria season (peak Feb&ndash;Apr, low Jul&ndash;Oct).
+            Modeled, not observed — don't present these monthly figures as real NMEC data.
+        </p>
+        <form method="get" class="d-flex flex-wrap align-items-center gap-3 mb-3">
+            <input type="hidden" name="driver" value="{{ driver }}">
+            <input type="hidden" name="lag" value="{{ lag_weeks }}">
+            <div class="d-flex align-items-center gap-2">
+                <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.7rem;">District</label>
+                <select name="district_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    {% for d in md_districts %}
+                    <option value="{{ d.id }}" {% if md_selected_district and d.id == md_selected_district.id %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if md_available_years %}
+            <div class="d-flex align-items-center gap-2">
+                <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.7rem;">Year</label>
+                <select name="year" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    {% for y in md_available_years %}
+                    <option value="{{ y }}" {% if y == md_selected_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if md_selected_district and md_selected_year %}
+            <a href="{% url 'monthly_estimate_csv' %}?district_id={{ md_selected_district.id }}&year={{ md_selected_year }}" class="btn btn-sm btn-outline-secondary ms-auto">
+                <i class="bi bi-download me-1"></i>Download CSV
+            </a>
+            {% endif %}
+        </form>
+        {% if md_monthly_breakdown %}
+        <p class="text-muted small mb-3">
+            {{ md_selected_district.name }}, {{ md_selected_year }} real annual total: <strong class="text-dark">{{ md_annual_total }}</strong>
+            confirmed cases &mdash; spread across the year below (always sums back to exactly {{ md_annual_total }}).
+        </p>
+        <div style="position: relative; height: 220px; width: 100%;">
+            <canvas id="monthlyEstimateChart"></canvas>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">No reporting years on file for this district yet.</p>
+        {% endif %}
+    </div>
+</details>
+{% endif %}
+
 <!-- Technical details, collapsed by default: everything above is plain-language;
      the full statistical/model methodology lives here for anyone who wants it. -->
 <details class="premium-card mt-2">
@@ -258,20 +309,20 @@ document.addEventListener("DOMContentLoaded", function () {
             plugins: {
                 legend: {
                     position: 'top',
-                    labels: { font: { family: 'Inter', weight: '600' } }
+                    labels: { font: { family: 'IBM Plex Sans', weight: '600' } }
                 }
             },
             scales: {
                 yWeather: {
                     type: 'linear',
                     position: 'left',
-                    title: { display: true, text: '{{ driver_label_lagged|escapejs }}', color: '{{ driver_color }}', font: { weight: 'bold', family: 'Inter' } },
+                    title: { display: true, text: '{{ driver_label_lagged|escapejs }}', color: '{{ driver_color }}', font: { weight: 'bold', family: 'IBM Plex Sans' } },
                     grid: { color: '#f1f5f9' }
                 },
                 yEpidemiology: {
                     type: 'linear',
                     position: 'right',
-                    title: { display: true, text: 'Confirmed Cases', color: '#dc3545', font: { weight: 'bold', family: 'Inter' } },
+                    title: { display: true, text: 'Confirmed Cases', color: '#dc3545', font: { weight: 'bold', family: 'IBM Plex Sans' } },
                     grid: { drawOnChartArea: false }
                 }
             }
@@ -303,11 +354,36 @@ document.addEventListener("DOMContentLoaded", function () {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
+                plugins: { legend: { position: 'top', labels: { font: { family: 'IBM Plex Sans', weight: '600' } } } },
                 scales: {
                     x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 60, font: { size: 10 } } },
                     y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
                 }
+            }
+        });
+    }
+
+    // ---- Estimated Monthly Breakdown ----
+    const monthlyCanvas = document.getElementById('monthlyEstimateChart');
+    if (monthlyCanvas) {
+        new Chart(monthlyCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: {{ md_monthly_labels_json|default:"[]"|safe }},
+                datasets: [{
+                    label: 'Estimated Confirmed Cases',
+                    data: {{ md_monthly_cases_json|default:"[]"|safe }},
+                    backgroundColor: 'rgba(185, 116, 15, 0.55)',
+                    borderColor: '#b9740f',
+                    borderWidth: 1.5,
+                    borderRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
             }
         });
     }

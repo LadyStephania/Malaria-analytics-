@@ -858,6 +858,52 @@ def analytics_view(request):
 
     lag_phrase = f"{lag_weeks} {cadence_unit}{'s' if lag_weeks != 1 else ''} earlier"
 
+    # ---- Estimated monthly breakdown (folded into this page rather than a
+    # separate one — same "annual-only data" context, so it belongs alongside
+    # the rest of the annual-cadence handling above, not off on its own). ----
+    md_districts = (
+        ZambianDistrict.objects.filter(integratedmalariadata__isnull=False).distinct().order_by('name')
+    )
+    md_district_id = request.GET.get('district_id') or None
+    md_selected_district = None
+    if md_district_id:
+        try:
+            md_selected_district = ZambianDistrict.objects.get(pk=md_district_id)
+        except (ZambianDistrict.DoesNotExist, ValueError):
+            md_selected_district = None
+    if not md_selected_district:
+        md_selected_district = md_districts.first()
+
+    md_year = None
+    md_available_years = []
+    md_annual_total = None
+    md_monthly_breakdown = []
+    if md_selected_district:
+        md_available_years = list(
+            IntegratedMalariaData.objects
+            .filter(district=md_selected_district)
+            .values_list('reporting_year', flat=True)
+            .distinct()
+            .order_by('-reporting_year')
+        )
+        try:
+            md_year = int(request.GET.get('year')) if request.GET.get('year') else None
+        except ValueError:
+            md_year = None
+        if md_year not in md_available_years:
+            md_year = md_available_years[0] if md_available_years else None
+
+        if md_year is not None:
+            md_annual_total = (
+                IntegratedMalariaData.objects
+                .filter(district=md_selected_district, reporting_year=md_year)
+                .aggregate(total=Sum('rdt_confirmations'))['total'] or 0
+            )
+            md_estimated = _distribute_annual_to_months(md_annual_total)
+            md_monthly_breakdown = [
+                {'short': _MONTH_NAMES[m - 1][:3], 'cases': md_estimated[m]} for m in range(1, 13)
+            ]
+
     context = {
         'driver': driver,
         'driver_label': driver_label,
@@ -893,6 +939,14 @@ def analytics_view(request):
         'rf_avp_labels_json': json.dumps([d for d, _a, _p in rf.get('actual_vs_predicted', [])[:20]]),
         'rf_avp_actual_json': json.dumps([a for _d, a, _p in rf.get('actual_vs_predicted', [])[:20]]),
         'rf_avp_predicted_json': json.dumps([p for _d, _a, p in rf.get('actual_vs_predicted', [])[:20]]),
+        'md_districts': md_districts,
+        'md_selected_district': md_selected_district,
+        'md_available_years': md_available_years,
+        'md_selected_year': md_year,
+        'md_annual_total': md_annual_total,
+        'md_monthly_breakdown': md_monthly_breakdown,
+        'md_monthly_labels_json': json.dumps([row['short'] for row in md_monthly_breakdown]),
+        'md_monthly_cases_json': json.dumps([row['cases'] for row in md_monthly_breakdown]),
     }
     return render(request, 'analytics.html', context)
 
@@ -944,70 +998,6 @@ def _distribute_annual_to_months(annual_total, weights=_MONTHLY_SEASONALITY_WEIG
     for m in by_remainder[:remainder]:
         floors[m] += 1
     return floors  # {month_number: estimated_cases}
-
-
-@login_required
-def monthly_estimate_view(request):
-    districts_with_data = (
-        ZambianDistrict.objects
-        .filter(integratedmalariadata__isnull=False)
-        .distinct()
-        .order_by('name')
-    )
-
-    district_id = request.GET.get('district_id') or None
-    selected_district = None
-    if district_id:
-        try:
-            selected_district = ZambianDistrict.objects.get(pk=district_id)
-        except (ZambianDistrict.DoesNotExist, ValueError):
-            selected_district = None
-    if not selected_district:
-        selected_district = districts_with_data.first()
-
-    year = None
-    available_years = []
-    monthly_breakdown = []
-    annual_total = None
-    if selected_district:
-        available_years = list(
-            IntegratedMalariaData.objects
-            .filter(district=selected_district)
-            .values_list('reporting_year', flat=True)
-            .distinct()
-            .order_by('-reporting_year')
-        )
-        try:
-            year = int(request.GET.get('year')) if request.GET.get('year') else None
-        except ValueError:
-            year = None
-        if year not in available_years:
-            year = available_years[0] if available_years else None
-
-        if year is not None:
-            annual_total = (
-                IntegratedMalariaData.objects
-                .filter(district=selected_district, reporting_year=year)
-                .aggregate(total=Sum('rdt_confirmations'))['total'] or 0
-            )
-            estimated = _distribute_annual_to_months(annual_total)
-            monthly_breakdown = [
-                {'month': _MONTH_NAMES[m - 1], 'short': _MONTH_NAMES[m - 1][:3], 'cases': estimated[m]}
-                for m in range(1, 13)
-            ]
-
-    context = {
-        'districts_with_data': districts_with_data,
-        'selected_district': selected_district,
-        'selected_district_id': selected_district.id if selected_district else '',
-        'available_years': available_years,
-        'selected_year': year,
-        'annual_total': annual_total,
-        'monthly_breakdown': monthly_breakdown,
-        'monthly_labels_json': json.dumps([row['short'] for row in monthly_breakdown]),
-        'monthly_cases_json': json.dumps([row['cases'] for row in monthly_breakdown]),
-    }
-    return render(request, 'monthly_estimate.html', context)
 
 
 @login_required

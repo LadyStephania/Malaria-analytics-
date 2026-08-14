@@ -8,7 +8,6 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('dashboard/year/<int:year>/', views.year_breakdown_view, name='year_breakdown'),
     path('analytics/', views.analytics_view, name='analytics'),
-    path('analytics/monthly-estimate/', views.monthly_estimate_view, name='monthly_estimate'),
     path('analytics/monthly-estimate.csv', views.monthly_estimate_csv_view, name='monthly_estimate_csv'),
     path('data-quality/', views.data_quality_view, name='data_quality'),
     path('hotspot-analysis/', views.hotspot_view, name='hotspot_analysis'),
