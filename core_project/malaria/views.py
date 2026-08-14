@@ -536,29 +536,56 @@ def analytics_view(request):
     placeholder_fraction = placeholder_count / len(lagged_driver) if lagged_driver else 0
     weather_mostly_placeholder = not weather_unavailable and placeholder_fraction >= 0.5
 
-    # Most recent 12 reported weeks, aggregated nationally, for the overlay chart.
-    weekly_rows = list(
+    # Every reporting period, aggregated nationally, oldest -> newest — the basis
+    # for the overlay chart below.
+    all_period_rows = list(
         IntegratedMalariaData.objects
         .values('reporting_year', 'epi_week')
         .annotate(driver_avg=Avg(driver_field), cases=Sum('rdt_confirmations'))
-        .order_by('-reporting_year', '-epi_week')[:12]
+        .order_by('reporting_year', 'epi_week')
     )
-    weekly_rows.reverse()
 
     # This NMEC-style dataset reports annually (every record sits on the epi_week=1
     # placeholder) rather than weekly — same detection the Dashboard trend uses.
     # Reuse it so the Random Forest section below doesn't call a 1-record lag
     # "1 week" when it's actually a full year.
-    is_annual_cadence = len({r['epi_week'] for r in weekly_rows}) <= 1
+    is_annual_cadence = len({r['epi_week'] for r in all_period_rows}) <= 1
     cadence_unit = 'year' if is_annual_cadence else 'week'
+
+    # The chart must show the SAME lagged relationship the stats above it
+    # describe — the driver value from `lag_weeks` periods earlier plotted
+    # against confirmed cases now — not the driver and cases from the same
+    # period. Plotting them unlagged would visually contradict a page that's
+    # telling the reader "rainfall N periods earlier predicts cases now."
+    # Most recent 12 aligned pairs, oldest -> newest.
+    weekly_rows = [
+        {
+            'epi_week': all_period_rows[i]['epi_week'],
+            'reporting_year': all_period_rows[i]['reporting_year'],
+            'driver_avg': all_period_rows[i - lag_weeks]['driver_avg'],
+            'cases': all_period_rows[i]['cases'],
+        }
+        for i in range(lag_weeks, len(all_period_rows))
+    ][-12:]
+
+    # Same annual-vs-weekly label choice the Dashboard trend uses — labeling every
+    # point "W1" when the data is actually annual would make every x-axis tick on
+    # this chart identical and unreadable.
+    if is_annual_cadence:
+        chart_labels = [str(r['reporting_year']) for r in weekly_rows]
+    else:
+        chart_labels = [f"W{r['epi_week']}" for r in weekly_rows]
 
     plain_summary = _describe_correlation(r_value, p_value, plain_driver, lag_weeks, cadence_unit, len(lagged_driver))
 
     rf = _random_forest_forecast(lag_weeks)
 
+    lag_phrase = f"{lag_weeks} {cadence_unit}{'s' if lag_weeks != 1 else ''} earlier"
+
     context = {
         'driver': driver,
         'driver_label': driver_label,
+        'driver_label_lagged': f"{driver_label} ({lag_phrase})",
         'plain_driver': plain_driver,
         'driver_color': driver_color,
         'plain_summary': plain_summary,
@@ -572,7 +599,7 @@ def analytics_view(request):
         'weather_unavailable': weather_unavailable,
         'weather_mostly_placeholder': weather_mostly_placeholder,
         'placeholder_pct': round(placeholder_fraction * 100),
-        'chart_labels_json': json.dumps([f"W{r['epi_week']}" for r in weekly_rows]),
+        'chart_labels_json': json.dumps(chart_labels),
         'chart_driver_json': json.dumps([round(r['driver_avg'] or 0, 1) for r in weekly_rows]),
         'chart_cases_json': json.dumps([r['cases'] or 0 for r in weekly_rows]),
         'cadence_unit': cadence_unit,
@@ -592,6 +619,151 @@ def analytics_view(request):
         'rf_avp_predicted_json': json.dumps([p for _d, _a, p in rf.get('actual_vs_predicted', [])[:20]]),
     }
     return render(request, 'analytics.html', context)
+
+# ================= 4b. ESTIMATED MONTHLY DISTRIBUTION (NOT REAL DATA) =================
+# The uploaded NMEC data reports annually. There is no real monthly breakdown to
+# show. This section deliberately never touches IntegratedMalariaData or any of
+# the real analytics above — it only ever produces a clearly-labeled, on-the-fly
+# ESTIMATE, splitting an annual total across 12 months using a documented
+# seasonality curve, for anyone who wants to see/download an approximate monthly
+# shape. It must never be presented, stored, or exported as if it were observed
+# data — see the "estimated" labeling throughout the view and template.
+#
+# Curve source: Zambia's malaria transmission consistently peaks Feb-Apr (rainy
+# season) and troughs Jul-Oct (dry season), per NMEC/DHIS2-sourced literature:
+#   - "Rethinking Malaria Seasonality: Humidity-Driven Transmission Shifts in
+#     Zambia (2009-2023)" (medRxiv 2025) - incidence highest Feb-Apr, lowest Jul-Oct
+#   - "Impact of aerial humidity on seasonal malaria: an ecological study in
+#     Zambia" (Malaria Journal, 2022) - rainy season Nov-Apr driving transmission
+# Neither paper publishes an exact numeric monthly index, so these are relative
+# weights approximating the described shape, not a published table — normalized
+# to sum to 1 in code below. Treat the resulting monthly split as illustrative of
+# the general pattern, not a precise reconstruction of any specific year.
+_MONTHLY_SEASONALITY_WEIGHTS = {
+    1: 9.0, 2: 11.0, 3: 14.0, 4: 13.0, 5: 9.0, 6: 5.0,
+    7: 3.0, 8: 2.5, 9: 3.0, 10: 4.0, 11: 6.0, 12: 9.5,
+}
+_MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+
+def _distribute_annual_to_months(annual_total, weights=_MONTHLY_SEASONALITY_WEIGHTS):
+    """
+    Splits an integer annual total across 12 months by the given relative
+    weights, using the largest-remainder method so the 12 outputs are integers
+    that sum EXACTLY back to annual_total (a naive round() per month can drift
+    the total by a case or two, which would be a self-inflicted "why don't
+    these add up" credibility problem for numbers that are already labeled as
+    estimates).
+    """
+    total_weight = sum(weights.values())
+    raw = {m: annual_total * w / total_weight for m, w in weights.items()}
+    floors = {m: int(v) for m, v in raw.items()}
+    remainder = annual_total - sum(floors.values())
+    # Hand out the leftover units to the months with the largest fractional
+    # remainder first — the standard largest-remainder apportionment method.
+    by_remainder = sorted(raw.keys(), key=lambda m: raw[m] - floors[m], reverse=True)
+    for m in by_remainder[:remainder]:
+        floors[m] += 1
+    return floors  # {month_number: estimated_cases}
+
+
+@login_required
+def monthly_estimate_view(request):
+    districts_with_data = (
+        ZambianDistrict.objects
+        .filter(integratedmalariadata__isnull=False)
+        .distinct()
+        .order_by('name')
+    )
+
+    district_id = request.GET.get('district_id') or None
+    selected_district = None
+    if district_id:
+        try:
+            selected_district = ZambianDistrict.objects.get(pk=district_id)
+        except (ZambianDistrict.DoesNotExist, ValueError):
+            selected_district = None
+    if not selected_district:
+        selected_district = districts_with_data.first()
+
+    year = None
+    available_years = []
+    monthly_breakdown = []
+    annual_total = None
+    if selected_district:
+        available_years = list(
+            IntegratedMalariaData.objects
+            .filter(district=selected_district)
+            .values_list('reporting_year', flat=True)
+            .distinct()
+            .order_by('-reporting_year')
+        )
+        try:
+            year = int(request.GET.get('year')) if request.GET.get('year') else None
+        except ValueError:
+            year = None
+        if year not in available_years:
+            year = available_years[0] if available_years else None
+
+        if year is not None:
+            annual_total = (
+                IntegratedMalariaData.objects
+                .filter(district=selected_district, reporting_year=year)
+                .aggregate(total=Sum('rdt_confirmations'))['total'] or 0
+            )
+            estimated = _distribute_annual_to_months(annual_total)
+            monthly_breakdown = [
+                {'month': _MONTH_NAMES[m - 1], 'short': _MONTH_NAMES[m - 1][:3], 'cases': estimated[m]}
+                for m in range(1, 13)
+            ]
+
+    context = {
+        'districts_with_data': districts_with_data,
+        'selected_district': selected_district,
+        'selected_district_id': selected_district.id if selected_district else '',
+        'available_years': available_years,
+        'selected_year': year,
+        'annual_total': annual_total,
+        'monthly_breakdown': monthly_breakdown,
+        'monthly_labels_json': json.dumps([row['short'] for row in monthly_breakdown]),
+        'monthly_cases_json': json.dumps([row['cases'] for row in monthly_breakdown]),
+    }
+    return render(request, 'monthly_estimate.html', context)
+
+
+@login_required
+def monthly_estimate_csv_view(request):
+    """Downloadable CSV of the estimate — headers make clear it's derived, not observed."""
+    district_id = request.GET.get('district_id')
+    year = request.GET.get('year')
+    district = ZambianDistrict.objects.filter(pk=district_id).first()
+    if not district or not year:
+        messages.error(request, "Pick a district and year first.")
+        return redirect('monthly_estimate')
+
+    annual_total = (
+        IntegratedMalariaData.objects
+        .filter(district=district, reporting_year=year)
+        .aggregate(total=Sum('rdt_confirmations'))['total'] or 0
+    )
+    estimated = _distribute_annual_to_months(annual_total)
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{district.name}_{year}_monthly_ESTIMATE.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['# ESTIMATED DATA - NOT OBSERVED', f'{district.name} does not have real monthly NMEC records for {year}.'])
+    writer.writerow(['# This file splits the real annual total below across 12 months using a published Zambia'])
+    writer.writerow(['# malaria seasonality curve (peak Feb-Apr, trough Jul-Oct) - it is a modeled approximation,'])
+    writer.writerow(['# not a measurement. Do not present these monthly figures as real NMEC data.'])
+    writer.writerow([f'# Real annual total ({year}, confirmed RDT cases): {annual_total}'])
+    writer.writerow([])
+    writer.writerow(['district', 'year', 'month', 'estimated_rdt_confirmations'])
+    for m in range(1, 13):
+        writer.writerow([district.name, year, _MONTH_NAMES[m - 1], estimated[m]])
+    return response
 
 # ================= 5. CLINICAL DECISION SUPPORT TIERS =================
 _BURDEN_WINDOW = 4

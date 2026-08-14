@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block title %}Monthly Estimate | Malaria Insights{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h2 class="fw-bold text-dark m-0">Estimated Monthly Distribution</h2>
+    <p class="text-muted small mb-0">Splits a real annual total across 12 months using a typical seasonal shape — this is a modeled guess, not a measurement.</p>
+</div>
+
+<div class="alert alert-warning border-0 rounded-3 mb-4">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>This is not real data.</strong> The uploaded NMEC records only report annually — nobody measured
+    malaria cases by month. The chart and table below take the real annual total and spread it across the year
+    using a documented Zambia malaria seasonality pattern (cases typically peak February&ndash;April, in the
+    rainy season, and are lowest July&ndash;October). It's a reasonable illustration of the likely shape, not a
+    record of what actually happened each month. Don't present these monthly numbers as observed NMEC data.
+</div>
+
+<form method="get" class="premium-card d-flex flex-wrap align-items-center gap-3 mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">District</label>
+        <select name="district_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            {% for d in districts_with_data %}
+            <option value="{{ d.id }}" {% if selected_district and d.id == selected_district.id %}selected{% endif %}>{{ d.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if available_years %}
+    <div class="d-flex align-items-center gap-2">
+        <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">Year</label>
+        <select name="year" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            {% for y in available_years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    {% if selected_district and selected_year %}
+    <a href="{% url 'monthly_estimate_csv' %}?district_id={{ selected_district.id }}&year={{ selected_year }}" class="btn btn-sm btn-outline-secondary ms-auto">
+        <i class="bi bi-download me-1"></i>Download Estimate CSV
+    </a>
+    {% endif %}
+</form>
+
+{% if not districts_with_data %}
+<div class="alert alert-info border-0 rounded-3">
+    No district-level case data yet — upload data first.
+</div>
+{% elif monthly_breakdown %}
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Real Annual Total</span>
+            <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ annual_total }}</h2>
+            <span class="text-success small fw-semibold">{{ selected_district.name }}, {{ selected_year }} &mdash; actual NMEC figure</span>
+        </div>
+    </div>
+    <div class="col-12 col-md-8">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">What This Estimate Assumes</span>
+            <p class="text-dark small mb-0">
+                The {{ annual_total }} confirmed cases are spread across the year following Zambia's typical
+                malaria season: rising through the rainy season, peaking around March&ndash;April, then falling
+                to a low point in the dry season (July&ndash;October). The 12 monthly numbers always add back up
+                to exactly {{ annual_total }}.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="premium-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-bar-chart-fill text-primary"></i>
+            Estimated Cases by Month — {{ selected_district.name }}, {{ selected_year }}
+        </h5>
+        <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 p-2 fw-medium">Estimated, Not Observed</span>
+    </div>
+    <div style="position: relative; height: 300px; width: 100%;">
+        <canvas id="monthlyEstimateChart"></canvas>
+    </div>
+</div>
+
+<div class="premium-card p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table align-middle m-0" style="font-size: 0.88rem;">
+            <thead class="table-light">
+                <tr>
+                    <th>Month</th>
+                    <th class="text-end">Estimated Confirmed Cases</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in monthly_breakdown %}
+                <tr>
+                    <td>{{ row.month }}</td>
+                    <td class="text-end">{{ row.cases }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="table-light fw-bold">
+                    <td>Total</td>
+                    <td class="text-end">{{ annual_total }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info border-0 rounded-3">
+    No reporting years on file for this district yet.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if monthly_breakdown %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    new Chart(document.getElementById('monthlyEstimateChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: {{ monthly_labels_json|safe }},
+            datasets: [{
+                label: 'Estimated Confirmed Cases',
+                data: {{ monthly_cases_json|safe }},
+                backgroundColor: 'rgba(245, 158, 11, 0.55)',
+                borderColor: '#f59e0b',
+                borderWidth: 1.5,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}
