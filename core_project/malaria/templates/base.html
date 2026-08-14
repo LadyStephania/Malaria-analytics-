@@ -74,6 +74,7 @@
             <li class="sidebar-item"><a href="{% url 'decision' %}" class="sidebar-link {% if request.resolver_match.url_name == 'decision' %}active-tab{% endif %}"><i class="bi bi-shield-fill-check"></i> Decision Support</a></li>
             <li class="sidebar-item"><a href="{% url 'weather' %}" class="sidebar-link {% if request.resolver_match.url_name == 'weather' %}active-tab{% endif %}"><i class="bi bi-cloud-sun-fill"></i> Weather Forecast</a></li>
             <li class="sidebar-item"><a href="{% url 'upload' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload' %}active-tab{% endif %}"><i class="bi bi-cloud-arrow-up-fill"></i> Upload Data</a></li>
+            <li class="sidebar-item"><a href="{% url 'data_quality' %}" class="sidebar-link {% if request.resolver_match.url_name == 'data_quality' %}active-tab{% endif %}"><i class="bi bi-clipboard2-check"></i> Data Quality</a></li>
             {% if request.user.role == 'ADMIN' %}
             <li class="sidebar-item"><a href="{% url 'users' %}" class="sidebar-link {% if request.resolver_match.url_name == 'users' %}active-tab{% endif %}"><i class="bi bi-people-fill"></i> Users Control</a></li>
             {% endif %}

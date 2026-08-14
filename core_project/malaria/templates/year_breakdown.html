@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}{{ year }} by District | Malaria Insights{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold text-dark m-0">Confirmed Cases in {{ year }}, by District</h2>
+        <p class="text-muted small mb-0">Drilled down from the trend chart &mdash; every district's confirmed case count for {{ year }} specifically, not cumulative.</p>
+    </div>
+    <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+</div>
+
+{% if not rows %}
+<div class="alert alert-warning border-0 rounded-3">
+    No district reported any cases for {{ year }}.
+</div>
+{% else %}
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Total Confirmed, {{ year }}</span>
+            <div class="fw-bold text-primary" style="font-size: 2rem;">{{ total_cases }}</div>
+            <span class="text-muted small">Across {{ rows|length }} district{{ rows|length|pluralize }}</span>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest, {{ year }}</span>
+            <div class="fw-bold text-danger" style="font-size: 1.4rem;">{{ rows.0.district__name }}</div>
+            <span class="text-danger small fw-semibold">{{ rows.0.cases }} confirmed cases</span>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Lowest, {{ year }}</span>
+            <div class="fw-bold text-dark" style="font-size: 1.4rem;">{{ rows.last.district__name }}</div>
+            <span class="text-muted small">{{ rows.last.cases }} confirmed cases</span>
+        </div>
+    </div>
+</div>
+
+<div class="premium-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
+            <i class="bi bi-bar-chart-line-fill text-primary"></i> Cases by District &mdash; {{ year }}
+        </h5>
+        <span class="badge bg-light text-secondary border p-2 fw-medium">Click a bar for full history</span>
+    </div>
+    <div style="position: relative; height: 500px; width: 100%;">
+        <canvas id="yearBreakdownChart"></canvas>
+    </div>
+</div>
+
+<div class="premium-card p-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table align-middle m-0" style="font-size: 0.88rem;">
+            <thead class="table-light">
+                <tr><th style="width:40px;">#</th><th>District</th><th class="text-end">Confirmed Cases ({{ year }})</th><th class="text-end">Action</th></tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="text-muted fw-bold">{{ forloop.counter }}</td>
+                    <td class="fw-semibold text-dark">{{ row.district__name }}</td>
+                    <td class="text-end">{{ row.cases }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'decision' %}?district_id={{ row.district_id }}" class="btn btn-sm btn-outline-primary">Full History</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if rows %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const decisionSupportUrl = "{% url 'decision' %}";
+    const districtIds = {{ district_ids_json|safe }};
+    new Chart(document.getElementById('yearBreakdownChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: {{ district_labels_json|safe }},
+            datasets: [{
+                label: 'Confirmed Cases ({{ year }})',
+                data: {{ district_cases_json|safe }},
+                backgroundColor: 'rgba(13, 110, 253, 0.65)',
+                borderRadius: 3
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            onClick: function (evt, elements) {
+                if (elements.length) {
+                    const id = districtIds[elements[0].index];
+                    window.location.href = decisionSupportUrl + '?district_id=' + id;
+                }
+            },
+            onHover: function (evt, elements) {
+                evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+            },
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                y: { ticks: { autoSkip: false, font: { size: 10 } } }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

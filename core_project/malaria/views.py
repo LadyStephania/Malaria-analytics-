@@ -333,6 +333,7 @@ def dashboard_view(request):
         'trend_labels_json': json.dumps(trend_labels),
         'trend_cases_json': json.dumps([r['cases'] or 0 for r in trend_rows]),
         'trend_title': trend_title,
+        'trend_is_annual': is_annual_cadence,
         'burden_tier_summary': burden_tier_summary,
         'burden_tier_labels_json': json.dumps([t['label'] for t in burden_tier_summary]),
         'burden_tier_counts_json': json.dumps([t['count'] for t in burden_tier_summary]),
@@ -344,6 +345,31 @@ def dashboard_view(request):
         'top_districts_ids_json': json.dumps([d['id'] for d in top_districts]),
     }
     return render(request, 'dashboard.html', context)
+
+# ================= 3b. YEAR DRILL-DOWN: EVERY DISTRICT, ONE YEAR =================
+# The trend chart's x-axis is a year (a national aggregate) — clicking a point on
+# it can only identify "which year", not "which district", since the chart has
+# no district dimension. This view is the natural next step: given a year,
+# break the national total back down by district so a specific district's count
+# for that year can actually be read off.
+@login_required
+def year_breakdown_view(request, year):
+    rows = list(
+        IntegratedMalariaData.objects
+        .filter(reporting_year=year)
+        .values('district_id', 'district__name')
+        .annotate(cases=Sum('rdt_confirmations'))
+        .order_by('-cases')
+    )
+    context = {
+        'year': year,
+        'rows': rows,
+        'total_cases': sum(r['cases'] or 0 for r in rows),
+        'district_labels_json': json.dumps([r['district__name'] for r in rows]),
+        'district_cases_json': json.dumps([r['cases'] or 0 for r in rows]),
+        'district_ids_json': json.dumps([r['district_id'] for r in rows]),
+    }
+    return render(request, 'year_breakdown.html', context)
 
 # ================= 4. ANALYTICS CORRELATION ENGINE VIEW =================
 _DRIVER_FIELDS = {
@@ -802,6 +828,73 @@ def monthly_estimate_csv_view(request):
     for m in range(1, 13):
         writer.writerow([district.name, year, _MONTH_NAMES[m - 1], estimated[m]])
     return response
+
+# ================= 4c. DATA QUALITY: COMPLETENESS & TIMELINESS =================
+# Two things this honestly can and can't measure, given the actual schema:
+#   - Reporting completeness (which periods a district DID/DIDN'T report) and a
+#     staleness proxy (is the district's latest report current with the rest of
+#     the dataset) - both fully computable from what's on file.
+#   - "Facility-level" anything, and true DHIS2-style timeliness (days late
+#     against a submission deadline) - NOT computable. IntegratedMalariaData is
+#     district-level and has no submission-timestamp field, only the reporting
+#     period itself. The page says so rather than quietly faking either one.
+@login_required
+def data_quality_view(request):
+    all_periods = list(
+        IntegratedMalariaData.objects.values_list('reporting_year', 'epi_week').distinct()
+    )
+    expected_periods = set(all_periods)
+    n_expected = len(expected_periods)
+    is_annual_cadence = len({p[1] for p in all_periods}) <= 1
+    cadence_unit = 'year' if is_annual_cadence else 'week'
+    latest_period = max(expected_periods) if expected_periods else None
+
+    def period_label(year, week):
+        return str(year) if is_annual_cadence else f"W{week} '{str(year)[-2:]}"
+
+    rows = []
+    for d in ZambianDistrict.objects.all().order_by('name'):
+        reported_periods = set(
+            IntegratedMalariaData.objects.filter(district=d).values_list('reporting_year', 'epi_week')
+        )
+        missing = sorted(expected_periods - reported_periods)
+        completeness = round(len(reported_periods) / n_expected * 100, 1) if n_expected else 0.0
+
+        if reported_periods:
+            district_latest = max(reported_periods)
+            is_current = district_latest == latest_period
+            latest_label = period_label(*district_latest)
+        else:
+            is_current = False
+            latest_label = 'Never reported'
+
+        rows.append({
+            'id': d.id,
+            'name': d.name,
+            'reported': len(reported_periods),
+            'expected': n_expected,
+            'completeness': completeness,
+            'missing_labels': [period_label(y, w) for y, w in missing],
+            'missing_count': len(missing),
+            'is_current': is_current,
+            'latest_label': latest_label,
+        })
+
+    # Worst completeness first — the districts that most need attention surface
+    # immediately rather than needing to be found in an alphabetical list.
+    rows.sort(key=lambda r: (r['completeness'], r['name']))
+
+    context = {
+        'cadence_unit': cadence_unit,
+        'n_expected_periods': n_expected,
+        'rows': rows,
+        'avg_completeness': round(sum(r['completeness'] for r in rows) / len(rows), 1) if rows else None,
+        'districts_with_gaps': sum(1 for r in rows if r['missing_count']),
+        'districts_never_reported': sum(1 for r in rows if r['reported'] == 0),
+        'districts_current': sum(1 for r in rows if r['is_current']),
+        'total_districts': len(rows),
+    }
+    return render(request, 'data_quality.html', context)
 
 # ================= 5. CLINICAL DECISION SUPPORT TIERS =================
 _BURDEN_WINDOW = 4

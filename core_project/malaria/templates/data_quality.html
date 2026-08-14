@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}Data Quality | Malaria Insights{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h2 class="fw-bold text-dark m-0">Data Quality</h2>
+    <p class="text-muted small mb-0">
+        How complete is each district's reporting history, and is it up to date? Real HMIS data is rarely 100%
+        complete — this page shows exactly where the gaps are instead of hiding them.
+    </p>
+</div>
+
+<div class="alert alert-light border rounded-3 mb-4">
+    <i class="bi bi-info-circle text-muted me-1"></i>
+    <strong>What this does and doesn't measure:</strong> completeness and "up to date" status below are computed
+    from the reporting periods actually on file for each district, compared against every period reported anywhere
+    in the dataset. This is <strong>district-level</strong> data — there's no facility-level breakdown to report on.
+    It also can't show true submission timeliness (how many days late a report was against a deadline), because
+    the uploaded records only carry the reporting period itself, not a separate submission date. "Up to date"
+    below is a proxy: whether a district's most recent report matches the most recent period anywhere in the data.
+</div>
+
+{% if not rows %}
+<div class="alert alert-warning border-0 rounded-3">
+    No district data yet — upload data first.
+</div>
+{% else %}
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-3">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Average Completeness</span>
+            <div class="fw-bold text-dark" style="font-size: 2rem;">{{ avg_completeness }}%</div>
+            <span class="text-muted small">Across {{ total_districts }} districts, {{ n_expected_periods }} {{ cadence_unit }}{{ n_expected_periods|pluralize }} expected</span>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts With Gaps</span>
+            <div class="fw-bold text-warning" style="font-size: 2rem;">{{ districts_with_gaps }}</div>
+            <span class="text-muted small">Missing at least one {{ cadence_unit }}</span>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Never Reported</span>
+            <div class="fw-bold text-danger" style="font-size: 2rem;">{{ districts_never_reported }}</div>
+            <span class="text-muted small">Zero records on file</span>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="premium-card h-100">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Currently Up to Date</span>
+            <div class="fw-bold text-success" style="font-size: 2rem;">{{ districts_current }}</div>
+            <span class="text-muted small">Latest report matches the newest {{ cadence_unit }} on file</span>
+        </div>
+    </div>
+</div>
+
+<div class="premium-card p-0 overflow-hidden">
+    <div class="p-3 bg-light border-bottom fw-bold text-dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clipboard2-check text-primary me-1"></i>Reporting Completeness by District</span>
+        <span class="badge bg-light text-secondary border p-2 fw-medium">Worst first</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle m-0" style="font-size: 0.85rem;">
+            <thead class="table-light">
+                <tr>
+                    <th>District</th>
+                    <th style="width: 160px;">Completeness</th>
+                    <th>Missing {{ cadence_unit|title }}s</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows|slice:":8" %}
+                <tr>
+                    <td class="fw-semibold text-dark">{{ row.name }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress flex-grow-1" style="height: 8px;">
+                                <div class="progress-bar {% if row.completeness >= 80 %}bg-success{% elif row.completeness >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ row.completeness }}%;"></div>
+                            </div>
+                            <span class="text-muted small">{{ row.completeness }}%</span>
+                        </div>
+                        <span class="text-muted" style="font-size: 0.7rem;">{{ row.reported }} of {{ row.expected }}</span>
+                    </td>
+                    <td class="text-muted small">{% if row.missing_labels %}{{ row.missing_labels|join:", " }}{% else %}&mdash;{% endif %}</td>
+                    <td>
+                        {% if row.reported == 0 %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Never Reported</span>
+                        {% elif row.is_current %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Current</span>
+                        {% else %}
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">Stale &mdash; last: {{ row.latest_label }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if rows|length > 8 %}
+            <tbody id="dataQualityRest" class="d-none">
+                {% for row in rows|slice:"8:" %}
+                <tr>
+                    <td class="fw-semibold text-dark">{{ row.name }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress flex-grow-1" style="height: 8px;">
+                                <div class="progress-bar {% if row.completeness >= 80 %}bg-success{% elif row.completeness >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ row.completeness }}%;"></div>
+                            </div>
+                            <span class="text-muted small">{{ row.completeness }}%</span>
+                        </div>
+                        <span class="text-muted" style="font-size: 0.7rem;">{{ row.reported }} of {{ row.expected }}</span>
+                    </td>
+                    <td class="text-muted small">{% if row.missing_labels %}{{ row.missing_labels|join:", " }}{% else %}&mdash;{% endif %}</td>
+                    <td>
+                        {% if row.reported == 0 %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Never Reported</span>
+                        {% elif row.is_current %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Current</span>
+                        {% else %}
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">Stale &mdash; last: {{ row.latest_label }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% endif %}
+        </table>
+    </div>
+    {% if rows|length > 8 %}
+    <div class="p-3 border-top">
+        <button class="btn btn-sm btn-outline-secondary" type="button" id="dataQualityToggleBtn">
+            <i class="bi bi-chevron-down me-1"></i>Show all {{ rows|length }} districts
+        </button>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const toggleBtn = document.getElementById('dataQualityToggleBtn');
+    const restBody = document.getElementById('dataQualityRest');
+    if (toggleBtn && restBody) {
+        toggleBtn.addEventListener('click', function () {
+            const nowHidden = restBody.classList.toggle('d-none');
+            toggleBtn.innerHTML = nowHidden
+                ? '<i class="bi bi-chevron-down me-1"></i>Show all {{ rows|length }} districts'
+                : '<i class="bi bi-chevron-up me-1"></i>Show fewer districts';
+        });
+    }
+});
+</script>
+{% endblock %}

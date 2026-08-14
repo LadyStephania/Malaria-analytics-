@@ -227,10 +227,18 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // ---- Case Trend Chart ----
+    // Clicking a point only tells us which YEAR was clicked, not which district —
+    // this chart is a national aggregate with no district dimension. So a click
+    // drills into a per-year, per-district breakdown page instead of pretending
+    // to jump straight to "this one district" (only enabled when each x-axis
+    // point really is a year — the weekly-cadence variant of this chart doesn't
+    // map onto that same "/dashboard/year/<year>/" URL).
+    const trendIsAnnual = {{ trend_is_annual|yesno:"true,false" }};
+    const trendLabels = {{ trend_labels_json|safe }};
     new Chart(document.getElementById('caseTrendChart').getContext('2d'), {
         type: 'line',
         data: {
-            labels: {{ trend_labels_json|safe }},
+            labels: trendLabels,
             datasets: [{
                 label: 'Confirmed Cases (RDT)',
                 data: {{ trend_cases_json|safe }},
@@ -244,6 +252,15 @@ document.addEventListener("DOMContentLoaded", function () {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            onClick: trendIsAnnual ? function (evt, elements) {
+                if (elements.length) {
+                    const year = trendLabels[elements[0].index];
+                    window.location.href = '/dashboard/year/' + year + '/';
+                }
+            } : undefined,
+            onHover: trendIsAnnual ? function (evt, elements) {
+                evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+            } : undefined,
             plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
             scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
         }
