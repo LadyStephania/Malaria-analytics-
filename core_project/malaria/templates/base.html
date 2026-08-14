@@ -4,38 +4,69 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Malaria Insights System{% endblock %}</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f172a'/%3E%3Cpath d='M15 52 L34 52 L44 26 L56 76 L66 52 L85 52' stroke='%233b82f6' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231a1714'/%3E%3Cpath d='M15 52 L34 52 L44 26 L56 76 L66 52 L85 52' stroke='%230e6e64' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
     {# Leaflet's CSS is only needed on pages with a map — loaded per-page via this block, not globally. #}
     {% block extra_head %}{% endblock %}
     <style>
+        /* ---- Design tokens ----
+           Deliberately not Bootstrap's stock palette. Warm neutral base (not
+           pure white/cool slate) + one functional accent (deep teal) + a
+           severity ramp for burden/risk that's muted rather than
+           traffic-light-saturated. --bs-* overrides below make Bootstrap's own
+           utility classes (text-*, bg-*, border-*, badges) pick this up
+           everywhere they're already used, instead of re-skinning every
+           template by hand. Severity colors follow the WHO/Malaria Atlas
+           Project convention for incidence maps (a warm green -> amber -> red
+           progression, not literal official NMEC hex values — Zambia's NMEC
+           doesn't publish its map's exact color codes; see the district
+           stratification thresholds cited in Decision Support instead, which
+           are real and sourced). */
         :root {
-            --ink: #0f172a; --muted: #64748b; --surface: #ffffff; --canvas: #f8fafc;
-            --primary: #0d6efd; --border: #e2e8f0;
-            --sidebar-gradient: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            --ink: #262220; --muted: #78716c; --surface: #fffdfb; --canvas: #f5f3ef;
+            --primary: #0e6e64; --primary-dark: #0a544c; --border: #e4ddd2;
+            --severity-low: #4d7c5f; --severity-moderate: #b9740f; --severity-high: #a3312a;
+            --sidebar-gradient: linear-gradient(180deg, #2b2622 0%, #1a1714 100%);
+
+            /* Bootstrap 5.3 theme overrides. Its text-, bg-, and border-color
+               utilities and badges read these at runtime, so this is the one
+               place that retints the whole app instead of hand-editing every
+               bg-danger / text-success in every template. */
+            --bs-primary: #0e6e64; --bs-primary-rgb: 14, 110, 100;
+            --bs-secondary: #78716c; --bs-secondary-rgb: 120, 113, 108;
+            --bs-success: #4d7c5f; --bs-success-rgb: 77, 124, 95;
+            --bs-warning: #b9740f; --bs-warning-rgb: 185, 116, 15;
+            --bs-danger: #a3312a; --bs-danger-rgb: 163, 49, 42;
+            --bs-info: #3d6b7d; --bs-info-rgb: 61, 107, 125;
+            --bs-body-bg: #f5f3ef; --bs-body-color: #262220;
+            --bs-border-color: #e4ddd2; --bs-link-color: #0e6e64; --bs-link-hover-color: #0a544c;
+            --bs-body-font-family: 'IBM Plex Sans', sans-serif;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { color: var(--ink); background-color: var(--canvas); font-family: 'Inter', sans-serif !important; }
+        body {
+            color: var(--ink); background-color: var(--canvas); font-family: 'IBM Plex Sans', sans-serif !important;
+            font-variant-numeric: tabular-nums; /* digits line up in tables/stat tiles instead of drifting */
+        }
         .layout-wrapper { display: flex; min-height: 100vh; }
         .dashboard-sidebar {
-            width: 260px; flex: 0 0 260px; padding: 30px 16px; background: var(--sidebar-gradient);
-            box-shadow: 6px 0 22px rgba(0,0,0,0.05); display: flex; flex-direction: column;
+            width: 230px; flex: 0 0 230px; padding: 20px 12px; background: var(--sidebar-gradient);
+            display: flex; flex-direction: column;
         }
-        .sidebar-brand { color: #93c5fd; font-size: 12px; font-weight: 800; letter-spacing: 0.12em; padding: 0 14px 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .sidebar-brand { color: #a8998d; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 0 10px 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .sidebar-menu { list-style: none; padding: 0; margin: 0; }
-        .sidebar-item { margin-bottom: 4px; }
+        .sidebar-item { margin-bottom: 2px; }
         .sidebar-link {
-            display: flex; align-items: center; gap: 12px; color: #cbd5e1; font-size: 14px;
-            font-weight: 600; padding: 12px 16px; text-decoration: none; border-radius: 8px; transition: all 0.2s;
+            display: flex; align-items: center; gap: 10px; color: #cbc2b8; font-size: 13.5px;
+            font-weight: 500; padding: 8px 12px; text-decoration: none; border-radius: 5px; transition: background 0.15s;
         }
-        .sidebar-link:hover { background: rgba(255, 255, 255, 0.06); color: white; transform: translateX(2px); }
-        .sidebar-link.active-tab { background: var(--primary) !important; color: white !important; box-shadow: 0 4px 12px rgba(13,110,253,0.2); }
-        .main-workspace { flex: 1; padding: 40px; overflow-y: auto; }
-        .premium-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 24px; }
+        .sidebar-link:hover { background: rgba(255, 255, 255, 0.06); color: white; }
+        .sidebar-link.active-tab { background: var(--primary) !important; color: white !important; }
+        .main-workspace { flex: 1; padding: 22px 26px; overflow-y: auto; }
+        .premium-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
 
         /* Mobile navigation toggle: hidden on desktop, shows a hamburger button
            and slides the sidebar off-canvas below the lg breakpoint. */
@@ -44,19 +75,18 @@
         @media (max-width: 991.98px) {
             .mobile-nav-toggle {
                 display: flex; align-items: center; justify-content: center;
-                width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border);
+                width: 40px; height: 40px; border-radius: 6px; border: 1px solid var(--border);
                 background: var(--surface); position: fixed; top: 16px; left: 16px; z-index: 1200;
-                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);
             }
             .dashboard-sidebar {
                 position: fixed; top: 0; bottom: 0; left: -280px; z-index: 1100;
-                transition: left 0.25s ease; width: 260px;
+                transition: left 0.25s ease; width: 230px;
             }
             .dashboard-sidebar.sidebar-open { left: 0; }
             .sidebar-backdrop.sidebar-open {
-                display: block; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 1050;
+                display: block; position: fixed; inset: 0; background: rgba(20, 18, 15, 0.5); z-index: 1050;
             }
-            .main-workspace { padding: 80px 20px 20px; }
+            .main-workspace { padding: 70px 16px 16px; }
         }
     </style>
 </head>
