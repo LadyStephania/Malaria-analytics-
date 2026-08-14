@@ -113,7 +113,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for row in priority_queue %}
+                {% for row in priority_queue|slice:":8" %}
                 <tr class="{% if row.id|stringformat:'s' == selected_district_id|stringformat:'s' %}table-primary{% endif %}">
                     <td class="text-muted fw-bold">{{ forloop.counter }}</td>
                     <td class="fw-semibold text-dark">{{ row.name }}</td>
@@ -134,8 +134,37 @@
                 </tr>
                 {% endfor %}
             </tbody>
+            {% if priority_queue|length > 8 %}
+            <tbody id="priorityQueueRest" class="d-none">
+                {% for row in priority_queue|slice:"8:" %}
+                <tr class="{% if row.id|stringformat:'s' == selected_district_id|stringformat:'s' %}table-primary{% endif %}">
+                    <td class="text-muted fw-bold">{{ forloop.counter|add:8 }}</td>
+                    <td class="fw-semibold text-dark">{{ row.name }}</td>
+                    <td>
+                        <span class="badge bg-{{ row.badge }} bg-opacity-10 text-{{ row.badge }} border border-{{ row.badge }} border-opacity-25">
+                            {{ row.icon }} {{ row.tier_label }}
+                        </span>
+                    </td>
+                    <td>{{ row.cases }}</td>
+                    <td>{% if row.incidence is not None %}{{ row.incidence }}{% else %}—{% endif %}</td>
+                    <td>{% if row.forecast_available %}<i class="bi bi-cloud-check-fill text-success" title="Forecast loaded"></i>{% else %}<i class="bi bi-cloud-slash-fill text-muted" title="Forecast unavailable — burden only"></i>{% endif %}</td>
+                    <td class="text-muted">{{ row.date }}</td>
+                    <td class="text-end">
+                        <a href="?district_id={{ row.id }}" class="btn btn-sm btn-outline-primary">
+                            {% if row.id|stringformat:"s" == selected_district_id|stringformat:"s" %}Viewing{% else %}Dispatch Here{% endif %}
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% endif %}
         </table>
     </div>
+    {% if priority_queue|length > 8 %}
+    <button class="btn btn-sm btn-outline-secondary mt-3" type="button" id="priorityQueueToggleBtn">
+        <i class="bi bi-chevron-down me-1"></i>Show all {{ priority_queue|length }} districts
+    </button>
+    {% endif %}
     <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
         Each row combines that district's 7-day forecast with its most recent confirmed case count (its own reporting
         date — districts don't all report on the same schedule). Ranked by combined tier, then by case count.
@@ -272,6 +301,20 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const toggleBtn = document.getElementById('priorityQueueToggleBtn');
+    const restBody = document.getElementById('priorityQueueRest');
+    if (toggleBtn && restBody) {
+        toggleBtn.addEventListener('click', function () {
+            const nowHidden = restBody.classList.toggle('d-none');
+            toggleBtn.innerHTML = nowHidden
+                ? '<i class="bi bi-chevron-down me-1"></i>Show all {{ priority_queue|length }} districts'
+                : '<i class="bi bi-chevron-up me-1"></i>Show fewer districts';
+        });
+    }
+});
+</script>
 {% if history_count > 1 %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <script>

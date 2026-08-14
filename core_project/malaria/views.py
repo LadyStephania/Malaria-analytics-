@@ -17,7 +17,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import IntegrityError
-from django.db.models import Sum, Avg, Max, Min
+from django.db.models import Sum, Avg, Max, Min, Count
 from django.http import HttpResponse
 from .models import SystemUser, IntegratedMalariaData, ZambianDistrict
 
@@ -212,6 +212,7 @@ def dashboard_view(request):
     total_confirmed = totals['total_confirmed'] or 0
     has_data = totals['latest_date'] is not None
     districts_reporting = IntegratedMalariaData.objects.values('district_id').distinct().count()
+    total_districts = ZambianDistrict.objects.count()
 
     # A single label for how much reporting history the cumulative stats below
     # actually span, so a number like the hotspot totals or critical-node count
@@ -269,6 +270,33 @@ def dashboard_view(request):
 
     alert_district = map_points[0]['name'] if map_points else 'No Data Yet'
 
+    # How many reporting districts fall in each burden tier — reuses the exact
+    # same classification as the map/ranking above, just counted instead of
+    # listed, for a single-glance "how many places are in trouble" summary.
+    tier_order = ['danger', 'warning', 'success']
+    tier_labels = {'danger': 'High', 'warning': 'Moderate', 'success': 'Low'}
+    tier_counts = {badge: 0 for badge in tier_order}
+    for point in map_points:
+        badge = next(b for b, color in _BADGE_COLOR.items() if color == point['color'])
+        tier_counts[badge] += 1
+    burden_tier_summary = [
+        {'label': tier_labels[badge], 'count': tier_counts[badge], 'color': _BADGE_COLOR[badge]}
+        for badge in tier_order
+    ]
+
+    # Confirmed cases grouped by province — a coarser, real aggregate for anyone
+    # who wants a provincial view rather than scanning all 116 districts.
+    province_rollup = list(
+        IntegratedMalariaData.objects
+        .values('district__province')
+        .annotate(cases=Sum('rdt_confirmations'), districts=Count('district_id', distinct=True))
+        .order_by('-cases')
+    )
+
+    # Top 8 districts by the same rank the hotspot list uses, for a compact bar
+    # chart alongside it.
+    top_districts = map_points[:8]
+
     # Last 8 reported epidemiological weeks, oldest -> newest, for the trend strip.
     trend_rows = list(
         IntegratedMalariaData.objects
@@ -293,6 +321,7 @@ def dashboard_view(request):
     context = {
         'confirmed_rdt': total_confirmed,
         'districts_reporting': districts_reporting,
+        'total_districts': total_districts,
         'alert_district': alert_district,
         'active_user_role': request.user.get_role_display(),
         'has_data': has_data,
@@ -304,6 +333,15 @@ def dashboard_view(request):
         'trend_labels_json': json.dumps(trend_labels),
         'trend_cases_json': json.dumps([r['cases'] or 0 for r in trend_rows]),
         'trend_title': trend_title,
+        'burden_tier_summary': burden_tier_summary,
+        'burden_tier_labels_json': json.dumps([t['label'] for t in burden_tier_summary]),
+        'burden_tier_counts_json': json.dumps([t['count'] for t in burden_tier_summary]),
+        'burden_tier_colors_json': json.dumps([t['color'] for t in burden_tier_summary]),
+        'province_rollup': province_rollup,
+        'top_districts': top_districts,
+        'top_districts_labels_json': json.dumps([d['name'] for d in top_districts]),
+        'top_districts_cases_json': json.dumps([d['cases'] for d in top_districts]),
+        'top_districts_ids_json': json.dumps([d['id'] for d in top_districts]),
     }
     return render(request, 'dashboard.html', context)
 
@@ -1165,9 +1203,14 @@ def upload_view(request):
                 if not district_name:
                     continue
 
+                # 'Unknown' rather than a name that could pass for a real province
+                # (e.g. an earlier version used 'Surveillance Region') — anything
+                # that reads as plausible would silently show up as a fake province
+                # in any province-level rollup (Dashboard, reports) until someone
+                # noticed and corrected it by hand.
                 district_obj, _district_created = ZambianDistrict.objects.get_or_create(
                     name=district_name,
-                    defaults={'province': 'Surveillance Region', 'latitude': -15.42, 'longitude': 28.28}
+                    defaults={'province': 'Unknown', 'latitude': -15.42, 'longitude': 28.28}
                 )
 
                 if pop_idx is not None and pop_idx < len(row):

@@ -29,6 +29,8 @@
         border-radius: 10px; padding: 10px 14px; font-size: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .map-legend .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .kpi-panel { border-top: 4px solid var(--primary); display: flex; flex-direction: column; gap: 28px; }
+    .kpi-block .kpi-value { font-size: 2.1rem; line-height: 1; letter-spacing: -0.5px; }
 </style>
 
 <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -48,48 +50,106 @@
     <i class="bi bi-info-circle-fill me-1"></i>
     No surveillance records yet. Go to <a href="{% url 'upload' %}" class="fw-semibold">Upload Data</a> to add some.
 </div>
-{% endif %}
+{% else %}
 
-<!-- Row 1: Summary Metric Cards -->
 <div class="row g-4 mb-4">
-    <div class="col-12 col-md-4">
-        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
-            <div>
+    <!-- Left: at-a-glance numbers -->
+    <div class="col-12 col-lg-3">
+        <div class="premium-card kpi-panel h-100 mb-0">
+            <div class="kpi-block">
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
-                <h2 class="fw-bold mb-0 text-primary" style="font-size: 2rem;">{{ confirmed_rdt }}</h2>
-                <span class="text-success small fw-semibold" style="font-size: 0.78rem;">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
+                <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt }}</div>
+                <span class="text-success small fw-semibold">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
             </div>
-            <div class="icon-box bg-success bg-opacity-10 text-success"><i class="bi bi-shield-check"></i></div>
-        </div>
-    </div>
-
-    <div class="col-12 col-md-4">
-        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100">
-            <div>
+            <div class="kpi-block">
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts Reporting</span>
-                <h2 class="fw-bold mb-0 text-dark" style="font-size: 2rem;">{{ districts_reporting }}</h2>
-                <span class="text-muted small" style="font-size: 0.78rem;">With at least one case record on file</span>
+                <div class="fw-bold text-dark kpi-value">{{ districts_reporting }}</div>
+                <span class="text-muted small">out of {{ total_districts }} nationwide</span>
             </div>
-            <div class="icon-box bg-info bg-opacity-10 text-info"><i class="bi bi-geo-alt"></i></div>
+            <div class="kpi-block">
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest-Burden District</span>
+                <div class="fw-bold text-danger" style="font-size: 1.4rem; line-height: 1.2;">{{ alert_district }}</div>
+                <span class="text-danger small fw-semibold">Most confirmed cases{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
+            </div>
+            <div class="kpi-block mt-auto pt-3 border-top">
+                <span class="text-muted small d-block">Latest report: {{ latest_date }}</span>
+                {% if data_year_range %}<span class="text-muted small d-block">Reporting history: {{ data_year_range }}</span>{% endif %}
+            </div>
         </div>
     </div>
 
-    <div class="col-12 col-md-4">
-        <div class="premium-card d-flex align-items-center justify-content-between mb-0 h-100" style="border-left: 4px solid #dc3545;">
-            <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest-Burden District</span>
-                <h2 class="fw-bold mb-0 text-danger" style="font-size: 1.5rem;">{{ alert_district }}</h2>
-                <span class="text-danger small fw-semibold" style="font-size: 0.78rem;">Most confirmed cases{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
+    <!-- Right: charts -->
+    <div class="col-12 col-lg-9">
+        <div class="row g-4">
+            <div class="col-12 col-xl-7">
+                <div class="premium-card h-100 mb-0">
+                    <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-graph-up text-primary"></i> {{ trend_title }}
+                    </h5>
+                    <div style="position: relative; height: 240px; width: 100%;">
+                        <canvas id="caseTrendChart"></canvas>
+                    </div>
+                </div>
             </div>
-            <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <div class="col-12 col-xl-5">
+                <div class="premium-card h-100 mb-0">
+                    <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-pie-chart-fill text-primary"></i> Districts by Burden Tier
+                    </h5>
+                    <div style="position: relative; height: 190px; width: 100%;">
+                        <canvas id="burdenTierChart"></canvas>
+                    </div>
+                    <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
+                        {% for tier in burden_tier_summary %}
+                        <span class="small text-muted"><span class="rounded-circle d-inline-block me-1" style="width:9px; height:9px; background-color:{{ tier.color }};"></span>{{ tier.label }}: {{ tier.count }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mt-1">
+            <div class="col-12 col-xl-6">
+                <div class="premium-card h-100 mb-0">
+                    <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-bar-chart-line-fill text-primary"></i> Top Districts by Rate
+                    </h5>
+                    <div style="position: relative; height: 240px; width: 100%;">
+                        <canvas id="topDistrictsChart"></canvas>
+                    </div>
+                    <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">Click a bar to open that district in Decision Support.</p>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="premium-card h-100 mb-0 p-0 overflow-hidden">
+                    <div class="p-3 bg-light border-bottom fw-bold text-dark d-flex align-items-center gap-2">
+                        <i class="bi bi-map text-primary"></i> Cases by Province
+                    </div>
+                    <div class="table-responsive" style="max-height: 260px;">
+                        <table class="table align-middle m-0" style="font-size: 0.85rem;">
+                            <thead class="table-light">
+                                <tr><th>Province</th><th class="text-end">Districts</th><th class="text-end">Confirmed Cases</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in province_rollup %}
+                                <tr>
+                                    <td>{{ row.district__province }}</td>
+                                    <td class="text-end text-muted">{{ row.districts }}</td>
+                                    <td class="text-end fw-semibold">{{ row.cases }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Row 2: Two-Column Map Layout Grid Component -->
+<!-- Map -->
 <div class="row g-4">
-    <!-- Map Left Block Card -->
-    <div class="col-12 col-xl-8">
+    <div class="col-12">
         <div class="premium-card mb-0">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
@@ -112,66 +172,21 @@
             </div>
         </div>
     </div>
-
-    <!-- Side Summary Context Block -->
-    <div class="col-12 col-xl-4">
-        <div class="premium-card h-100 mb-0">
-            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-1">
-                <i class="bi bi-list-ol text-primary"></i> Highest-Risk Districts
-            </h5>
-            {% if data_year_range %}
-            <p class="text-muted mb-2" style="font-size: 0.72rem;">Cumulative totals, {{ data_year_range }}.</p>
-            {% endif %}
-            {% if map_points %}
-            <div style="max-height: 300px; overflow-y: auto;">
-                {% for point in map_points %}
-                <a href="{% url 'decision' %}?district_id={{ point.id }}" class="d-flex align-items-center justify-content-between py-2 text-decoration-none {% if not forloop.last %}border-bottom{% endif %}" title="View {{ point.name }}'s full history in Decision Support">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="rounded-circle d-inline-block" style="width:10px; height:10px; background-color: {{ point.color }};"></span>
-                        <span class="small fw-semibold text-dark">{{ point.name }}</span>
-                    </div>
-                    {% if point.incidence_per_10k is not None %}
-                    <span class="badge bg-light text-dark border" title="{{ point.cases }} cases / {{ point.population }} population">{{ point.incidence_per_10k }} /10k</span>
-                    {% else %}
-                    <span class="badge bg-light text-dark border" title="Population not on file — raw count shown">{{ point.cases }} cases</span>
-                    {% endif %}
-                </a>
-                {% endfor %}
-            </div>
-            <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
-                Ranked by cases per 10,000 people where population is known; others are ranked by raw case count and listed last.
-            </p>
-            {% else %}
-            <p class="text-muted small mb-0">No district-level records yet.</p>
-            {% endif %}
-        </div>
-    </div>
 </div>
-
-<!-- Row 3: Recent Trend Strip -->
-<div class="row g-4 mt-1">
-    <div class="col-12">
-        <div class="premium-card mb-0">
-            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
-                <i class="bi bi-graph-up text-primary"></i> {{ trend_title }}
-            </h5>
-            <div style="position: relative; height: 220px; width: 100%;">
-                <canvas id="caseTrendChart"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if has_data %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    const decisionSupportUrl = "{% url 'decision' %}";
+
     // ---- Leaflet Hotspot Map ----
     const mapPoints = {{ map_points_json|safe }};
     const dataYearRange = {{ data_year_range_json|safe }};
-    const decisionSupportUrl = "{% url 'decision' %}";
     const map = L.map('malariaHotspotMap').setView([-13.13, 27.85], 6); // Zambia centroid
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -181,10 +196,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     mapPoints.forEach(function (point) {
         if (point.lat == null || point.lon == null) return;
-        // Marker size follows incidence rate when population is known (the epidemiologically
-        // meaningful measure); falls back to raw case count for districts without population data.
+        // Radius grows with sqrt(value) so circle AREA (not radius) scales with
+        // incidence — the standard cartographic approach. The old constants
+        // (8-30px, sqrt(x)*3) hit their 30px cap for almost every district once
+        // real population data made incidence rates run into the hundreds, so
+        // nearly every marker rendered at the same oversized max size, burying
+        // the base map's own place labels underneath them. 5-18px keeps markers
+        // readable and still visibly different from each other.
         const sizeMetric = point.incidence_per_10k != null ? point.incidence_per_10k : point.cases;
-        const radius = Math.max(8, Math.min(30, Math.sqrt(sizeMetric || 1) * 3));
+        const radius = Math.max(5, Math.min(18, 5 + Math.sqrt(sizeMetric || 0) * 0.375));
         const incidenceLine = point.incidence_per_10k != null
             ? 'Incidence: ' + point.incidence_per_10k + ' per 10,000 (pop. ' + point.population.toLocaleString() + ')<br>'
             : 'Population not on file (raw count shown)<br>';
@@ -193,8 +213,8 @@ document.addEventListener("DOMContentLoaded", function () {
             radius: radius,
             color: point.color,
             fillColor: point.color,
-            fillOpacity: 0.55,
-            weight: 2
+            fillOpacity: 0.45,
+            weight: 1.5
         })
         .addTo(map)
         .bindPopup(
@@ -206,9 +226,8 @@ document.addEventListener("DOMContentLoaded", function () {
         );
     });
 
-    // ---- Recent Case Trend Chart ----
-    const trendCtx = document.getElementById('caseTrendChart').getContext('2d');
-    new Chart(trendCtx, {
+    // ---- Case Trend Chart ----
+    new Chart(document.getElementById('caseTrendChart').getContext('2d'), {
         type: 'line',
         data: {
             labels: {{ trend_labels_json|safe }},
@@ -229,6 +248,57 @@ document.addEventListener("DOMContentLoaded", function () {
             scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
         }
     });
+
+    // ---- Burden Tier Donut ----
+    new Chart(document.getElementById('burdenTierChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ burden_tier_labels_json|safe }},
+            datasets: [{
+                data: {{ burden_tier_counts_json|safe }},
+                backgroundColor: {{ burden_tier_colors_json|safe }},
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // ---- Top Districts by Rate (clickable) ----
+    const topDistrictIds = {{ top_districts_ids_json|safe }};
+    new Chart(document.getElementById('topDistrictsChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: {{ top_districts_labels_json|safe }},
+            datasets: [{
+                label: 'Confirmed Cases (RDT)',
+                data: {{ top_districts_cases_json|safe }},
+                backgroundColor: 'rgba(13, 110, 253, 0.65)',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            onClick: function (evt, elements) {
+                if (elements.length) {
+                    const id = topDistrictIds[elements[0].index];
+                    window.location.href = decisionSupportUrl + '?district_id=' + id;
+                }
+            },
+            onHover: function (evt, elements) {
+                evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+            },
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
+        }
+    });
 });
 </script>
+{% endif %}
 {% endblock %}
