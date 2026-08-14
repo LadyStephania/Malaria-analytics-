@@ -90,6 +90,24 @@ def _classify_burden(cases, population):
     return 'Low Burden', 'success', None
 
 
+def _province_populations():
+    """
+    {province: total_population}, summed from each province's real district
+    populations (ZambianDistrict.population, sourced from the 2022 census —
+    see the district-coordinate fix earlier). There's no separate
+    province-population field; a province's population IS the sum of its
+    districts', so this is computed directly from ZambianDistrict rather than
+    through IntegratedMalariaData (which would double-count a district's
+    population once per reporting period it has a record for).
+    """
+    rollup = (
+        ZambianDistrict.objects
+        .values('province')
+        .annotate(population=Sum('population'))
+    )
+    return {row['province']: row['population'] or 0 for row in rollup}
+
+
 def _fetch_forecast_days(lat, lon):
     """
     Returns a list of up to 14 {date, rain, temp, badge} dicts — the raw daily
@@ -286,12 +304,19 @@ def dashboard_view(request):
 
     # Confirmed cases grouped by province — a coarser, real aggregate for anyone
     # who wants a provincial view rather than scanning all 116 districts.
+    # Population-adjusted the same way the district hotspot map is: cases per
+    # 10,000 residents, using each province's real summed district population.
+    province_populations = _province_populations()
     province_rollup = list(
         IntegratedMalariaData.objects
         .values('district__province')
         .annotate(cases=Sum('rdt_confirmations'), districts=Count('district_id', distinct=True))
         .order_by('-cases')
     )
+    for row in province_rollup:
+        pop = province_populations.get(row['district__province'], 0)
+        row['population'] = pop
+        row['incidence_per_10k'] = round(row['cases'] / pop * 10000, 1) if pop else None
 
     # Top 8 districts by the same rank the hotspot list uses, for a compact bar
     # chart alongside it.
@@ -361,6 +386,23 @@ def year_breakdown_view(request, year):
         .annotate(cases=Sum('rdt_confirmations'))
         .order_by('-cases')
     )
+
+    # Same year's cases, one level up — by province, population-adjusted, so
+    # "how many people got malaria in a province in this specific year, against
+    # how many people live there" is answerable without averaging across years.
+    province_populations = _province_populations()
+    province_rows = list(
+        IntegratedMalariaData.objects
+        .filter(reporting_year=year)
+        .values('district__province')
+        .annotate(cases=Sum('rdt_confirmations'), districts=Count('district_id', distinct=True))
+        .order_by('-cases')
+    )
+    for row in province_rows:
+        pop = province_populations.get(row['district__province'], 0)
+        row['population'] = pop
+        row['incidence_per_10k'] = round(row['cases'] / pop * 10000, 1) if pop else None
+
     context = {
         'year': year,
         'rows': rows,
@@ -368,6 +410,7 @@ def year_breakdown_view(request, year):
         'district_labels_json': json.dumps([r['district__name'] for r in rows]),
         'district_cases_json': json.dumps([r['cases'] or 0 for r in rows]),
         'district_ids_json': json.dumps([r['district_id'] for r in rows]),
+        'province_rows': province_rows,
     }
     return render(request, 'year_breakdown.html', context)
 

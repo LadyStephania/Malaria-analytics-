@@ -40,6 +40,29 @@
     </div>
 </div>
 
+<div class="premium-card p-0 overflow-hidden mb-4">
+    <div class="p-3 bg-light border-bottom fw-bold text-dark d-flex align-items-center gap-2">
+        <i class="bi bi-map text-primary"></i> Cases by Province &mdash; {{ year }} <span class="text-muted fw-normal" style="font-size: 0.72rem;">(population-adjusted, this year only)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle m-0" style="font-size: 0.88rem;">
+            <thead class="table-light">
+                <tr><th>Province</th><th class="text-end">Population</th><th class="text-end">Confirmed Cases ({{ year }})</th><th class="text-end">Per 10,000</th></tr>
+            </thead>
+            <tbody>
+                {% for row in province_rows %}
+                <tr>
+                    <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
+                    <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
+                    <td class="text-end fw-semibold">{{ row.cases }}</td>
+                    <td class="text-end">{% if row.incidence_per_10k is not None %}{{ row.incidence_per_10k }}{% else %}&mdash;{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <div class="premium-card mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
