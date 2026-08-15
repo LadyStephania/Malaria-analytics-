@@ -235,8 +235,8 @@
             <span class="text-muted small fw-normal d-block">Case Burden Tier</span>
             <span>{{ burden_label }}</span>
         </div>
-        <div class="meta-list-block flex-fill" style="min-width: 140px;">
-            <span class="text-muted small fw-normal d-block">Incidence /10k</span>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Confirmed cases ÷ population × 10,000 — see footnote below">
+            <span class="text-muted small fw-normal d-block">Incidence /10k <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
             <span>{% if incidence_per_10k is not None %}{{ incidence_per_10k }}{% else %}Population not on file{% endif %}</span>
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;">
@@ -244,6 +244,15 @@
             <span>{% if forecast_available %}{{ danger_days_7 }} high-risk / {{ warning_days_7 }} moderate{% else %}Unavailable{% endif %}</span>
         </div>
     </div>
+    {% if incidence_per_10k is not None %}
+    <p class="text-muted mt-3 mb-0 pt-2 border-top" style="font-size: 0.72rem;">
+        <strong>Incidence per 10,000</strong> = confirmed cases &divide; district population &times; 10,000 &mdash;
+        e.g. {{ target_label }}: {{ recent_cases }} confirmed cases &divide; {{ selected_district_population }} population
+        &times; 10,000 = {{ incidence_per_10k }}. Population is drawn from the 2022 Zambia census, per district. This
+        rate (not the raw case count) is what the burden tier and priority ranking are based on, so districts of very
+        different sizes are compared fairly.
+    </p>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

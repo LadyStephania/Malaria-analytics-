@@ -1351,6 +1351,7 @@ def decision_view(request):
         'auto_selected': auto_selected,
         'districts_with_data': districts_with_data,
         'selected_district_id': selected_district.id,
+        'selected_district_population': selected_district.population,
         'trend_text': trend_text,
         'trend_icon': trend_icon,
         'trend_class': trend_class,
