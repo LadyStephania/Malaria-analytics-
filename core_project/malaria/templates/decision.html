@@ -235,8 +235,12 @@
             <span class="text-muted small fw-normal d-block">Case Burden Tier</span>
             <span>{{ burden_label }}</span>
         </div>
-        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Confirmed cases ÷ population × 10,000 — see footnote below">
-            <span class="text-muted small fw-normal d-block">Incidence /10k <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="{{ target_label }}'s real population, 2022 census — NOT the '10,000' in the next box, which is just a fixed scale for comparing districts, not a headcount.">
+            <span class="text-muted small fw-normal d-block">Population (Real) <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
+            <span>{% if selected_district_population %}{{ selected_district_population|floatformat:0 }}{% else %}Not on file{% endif %}</span>
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Confirmed cases ÷ real population (left) × 10,000 — see footnote below. The '10,000' is a fixed scale, not this district's population.">
+            <span class="text-muted small fw-normal d-block">Incidence <span class="text-muted" style="font-weight:400;">(per 10,000)</span> <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
             <span>{% if incidence_per_10k is not None %}{{ incidence_per_10k }}{% else %}Population not on file{% endif %}</span>
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Critical = heavy rain and ideal breeding temperature together on the same day. Moderate = just some rain, or a warm day, on its own.">
@@ -248,11 +252,14 @@
     <div class="mt-3 pt-2 border-top">
         {% if incidence_per_10k is not None %}
         <p class="text-muted mb-2" style="font-size: 0.72rem;">
-            <strong>Incidence per 10,000</strong> = confirmed cases &divide; district population &times; 10,000 &mdash;
-            e.g. {{ target_label }}: {{ recent_cases }} confirmed cases &divide; {{ selected_district_population }} population
-            &times; 10,000 = {{ incidence_per_10k }}. Population is drawn from the 2022 Zambia census, per district. This
-            rate (not the raw case count) is what the burden tier and priority ranking are based on, so districts of very
-            different sizes are compared fairly.
+            <strong>The "10,000" is a fixed scale, not {{ target_label }}'s population.</strong> {{ target_label }}'s
+            real population is {{ selected_district_population|floatformat:0 }} (2022 census) &mdash; every district
+            gets rescaled to "as if it had 10,000 people" so districts of very different real sizes can be compared
+            fairly, the same way a speed in miles-per-hour doesn't mean you drove for exactly one hour.
+            <strong>Incidence per 10,000</strong> = confirmed cases &divide; real population &times; 10,000 &mdash;
+            e.g. {{ target_label }}: {{ recent_cases }} confirmed cases &divide; {{ selected_district_population }} real population
+            &times; 10,000 = {{ incidence_per_10k }}. This rate (not the raw case count) is what the burden tier and
+            priority ranking are based on.
         </p>
         {% endif %}
         {% if forecast_available %}
