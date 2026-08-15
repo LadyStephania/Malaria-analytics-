@@ -55,12 +55,20 @@ def _p_value_from_r(r, n):
 
 
 def _classify_risk(rainfall_mm, temp_c):
-    """Shared rule-of-thumb vector-breeding risk classifier (rainfall + temperature window)."""
+    """
+    Shared rule-of-thumb vector-breeding risk classifier — requires rainfall AND
+    temperature together for both tiers, not either alone. Mosquitoes breed in
+    standing water: a warm, bone-dry day has nowhere for them to lay eggs, so
+    temperature by itself (regardless of how "ideal" it is) isn't a meaningful
+    risk signal without rain to go with it. (The moderate tier previously used
+    OR here, which meant a warm dry-season day with 0mm of rain still got
+    flagged "Moderate Risk Alert" on temperature alone — fixed to require both.)
+    """
     if rainfall_mm > 10.0 and 24.0 <= temp_c <= 30.0:
-        return 'Critical Outbreak Risk 🔥', 'danger'
-    elif rainfall_mm > 2.0 or 20.0 <= temp_c <= 32.0:
-        return 'Moderate Risk Alert ⚠️', 'warning'
-    return 'Low Stable Risk ✅', 'success'
+        return 'Critical Outbreak Risk', 'danger'
+    elif rainfall_mm > 2.0 and 20.0 <= temp_c <= 32.0:
+        return 'Moderate Risk Alert', 'warning'
+    return 'Low Stable Risk', 'success'
 
 
 _RISK_RANK = {'success': 0, 'warning': 1, 'danger': 2}

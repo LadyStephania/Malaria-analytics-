@@ -239,19 +239,33 @@
             <span class="text-muted small fw-normal d-block">Incidence /10k <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
             <span>{% if incidence_per_10k is not None %}{{ incidence_per_10k }}{% else %}Population not on file{% endif %}</span>
         </div>
-        <div class="meta-list-block flex-fill" style="min-width: 140px;">
-            <span class="text-muted small fw-normal d-block">Forecast (next 7 days)</span>
-            <span>{% if forecast_available %}{{ danger_days_7 }} high-risk / {{ warning_days_7 }} moderate{% else %}Unavailable{% endif %}</span>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Critical = heavy rain and ideal breeding temperature together on the same day. Moderate = just some rain, or a warm day, on its own.">
+            <span class="text-muted small fw-normal d-block">Next 7 Days' Weather <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
+            <span>{% if forecast_available %}{{ danger_days_7 }} critical-risk, {{ warning_days_7 }} moderate-risk day{{ warning_days_7|pluralize }}{% else %}Unavailable{% endif %}</span>
         </div>
     </div>
-    {% if incidence_per_10k is not None %}
-    <p class="text-muted mt-3 mb-0 pt-2 border-top" style="font-size: 0.72rem;">
-        <strong>Incidence per 10,000</strong> = confirmed cases &divide; district population &times; 10,000 &mdash;
-        e.g. {{ target_label }}: {{ recent_cases }} confirmed cases &divide; {{ selected_district_population }} population
-        &times; 10,000 = {{ incidence_per_10k }}. Population is drawn from the 2022 Zambia census, per district. This
-        rate (not the raw case count) is what the burden tier and priority ranking are based on, so districts of very
-        different sizes are compared fairly.
-    </p>
+    {% if incidence_per_10k is not None or forecast_available %}
+    <div class="mt-3 pt-2 border-top">
+        {% if incidence_per_10k is not None %}
+        <p class="text-muted mb-2" style="font-size: 0.72rem;">
+            <strong>Incidence per 10,000</strong> = confirmed cases &divide; district population &times; 10,000 &mdash;
+            e.g. {{ target_label }}: {{ recent_cases }} confirmed cases &divide; {{ selected_district_population }} population
+            &times; 10,000 = {{ incidence_per_10k }}. Population is drawn from the 2022 Zambia census, per district. This
+            rate (not the raw case count) is what the burden tier and priority ranking are based on, so districts of very
+            different sizes are compared fairly.
+        </p>
+        {% endif %}
+        {% if forecast_available %}
+        <p class="text-muted mb-0" style="font-size: 0.72rem;">
+            <strong>Next 7 Days' Weather</strong> checks each of the next 7 forecast days against two thresholds: a day
+            is <strong>critical-risk</strong> if it has both heavy rain (over 10mm) and an ideal mosquito-breeding
+            temperature (24&ndash;30&deg;C) &mdash; the worst combination together. A day is <strong>moderate-risk</strong>
+            if it has just some rain (over 2mm) <em>or</em> a warm temperature (20&ndash;32&deg;C) on its own, without
+            the other condition. {{ target_label }}: {{ danger_days_7 }} of the next 7 days are critical-risk,
+            {{ warning_days_7 }} are moderate-risk.
+        </p>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
 {% endif %}
