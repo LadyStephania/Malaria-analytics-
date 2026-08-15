@@ -52,20 +52,6 @@
     <span class="text-muted small ms-auto"><i class="bi bi-info-circle me-1"></i>Choose a weather factor and a delay, and the page below recalculates.</span>
 </form>
 
-{% if plain_summary %}
-<!-- Plain-language verdict, up front -->
-<div class="premium-card mb-4 border-0" style="background: {% if plain_summary.confidence_tone == 'success' %}#f0fdf4{% else %}#fffbeb{% endif %};">
-    <div class="d-flex align-items-start gap-3">
-        <div class="icon-box {% if plain_summary.confidence_tone == 'success' %}bg-success{% else %}bg-warning{% endif %} bg-opacity-15 {% if plain_summary.confidence_tone == 'success' %}text-success{% else %}text-warning{% endif %}" style="width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i class="bi {% if plain_summary.confidence_tone == 'success' %}bi-check-lg{% else %}bi-question-lg{% endif %} fs-5"></i>
-        </div>
-        <div>
-            <p class="fw-semibold text-dark mb-1">{{ plain_summary.headline }}</p>
-            <p class="text-muted small mb-0">{{ plain_summary.confidence }}</p>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 <!-- Chart -->
 <div class="premium-card mb-4">
