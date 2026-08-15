@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('', views.login_view, name='login'),
+    path('login/', views.login_view),  # alias — '/login/' is the natural guess, keep the root path as the canonical `{% url 'login' %}` target
     path('logout/', views.logout_view, name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('dashboard/year/<int:year>/', views.year_breakdown_view, name='year_breakdown'),
