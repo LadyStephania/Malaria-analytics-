@@ -586,6 +586,7 @@ def dashboard_view(request):
         pop = province_populations.get(row['district__province'], 0)
         row['population'] = pop
         row['incidence_per_10k'] = round(row['cases'] / pop * 10000, 1) if pop else None
+        row['incidence_pct'] = round(row['cases'] / pop * 100, 2) if pop else None
 
     # Top 8 districts by the same rank the hotspot list uses, for a compact bar
     # chart alongside it.
@@ -671,6 +672,7 @@ def year_breakdown_view(request, year):
         pop = province_populations.get(row['district__province'], 0)
         row['population'] = pop
         row['incidence_per_10k'] = round(row['cases'] / pop * 10000, 1) if pop else None
+        row['incidence_pct'] = round(row['cases'] / pop * 100, 2) if pop else None
 
     context = {
         'year': year,
