@@ -19,8 +19,28 @@ class SystemUser(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='CLERK')
     district_assignment = models.CharField(max_length=100, blank=True, null=True)
 
+    # Two-factor authentication (TOTP, authenticator-app style) — opt-in per user.
+    # totp_secret only means anything once totp_enabled is True; a secret can sit
+    # here mid-setup (generated, QR shown) without being active yet, which is why
+    # enablement is its own flag rather than "secret is set".
+    totp_secret = models.CharField(max_length=32, blank=True, null=True)
+    totp_enabled = models.BooleanField(default=False)
+
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
+
+
+class TOTPBackupCode(models.Model):
+    """
+    One-time recovery codes for when a user has 2FA enabled but has lost access
+    to their authenticator app. Codes are hashed with Django's own password
+    hasher (same machinery as SystemUser.password) — never stored or logged in
+    plain text after the moment they're generated and shown once.
+    """
+    user = models.ForeignKey(SystemUser, on_delete=models.CASCADE, related_name='backup_codes')
+    code_hash = models.CharField(max_length=128)
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 class ZambianDistrict(models.Model):
     """Stores target geographical nodes for matching weather strings."""

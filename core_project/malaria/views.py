@@ -1,11 +1,15 @@
+import base64
 import csv
 import io
 import json
 import logging
 import math
 import datetime
+import secrets
 import requests
 import numpy as np
+import pyotp
+import qrcode
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 from concurrent.futures import ThreadPoolExecutor
@@ -13,13 +17,14 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import Sum, Avg, Max, Min, Count
 from django.http import HttpResponse
-from .models import SystemUser, IntegratedMalariaData, ZambianDistrict
+from .models import SystemUser, IntegratedMalariaData, ZambianDistrict, TOTPBackupCode
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +330,12 @@ def login_view(request):
         p = request.POST.get('password')
         user = authenticate(request, username=u, password=p)
         if user is not None:
+            if user.totp_enabled:
+                # Password alone isn't enough — stash who's pending in the
+                # session (not yet an authenticated login) and hand off to the
+                # code-entry step. login() only happens once that succeeds.
+                request.session['pending_2fa_user_id'] = user.id
+                return redirect('verify_2fa')
             login(request, user)
             messages.success(request, f"Access Granted. Logged in as {user.get_role_display()}.")
             return redirect('dashboard')
@@ -332,11 +343,150 @@ def login_view(request):
             messages.error(request, "Invalid credentials. Access Denied.")
     return render(request, 'login.html')
 
+
+def verify_2fa_view(request):
+    """
+    Second step of login for accounts with 2FA enabled. Reached only via a
+    pending_2fa_user_id placed in the session by login_view — never
+    login_required, since the user isn't authenticated yet at this point.
+    Accepts either a live 6-digit TOTP code or an unused backup code.
+    """
+    user_id = request.session.get('pending_2fa_user_id')
+    if not user_id:
+        return redirect('login')
+    try:
+        user = SystemUser.objects.get(pk=user_id, totp_enabled=True)
+    except SystemUser.DoesNotExist:
+        request.session.pop('pending_2fa_user_id', None)
+        return redirect('login')
+
+    if request.method == 'POST':
+        code = (request.POST.get('code') or '').strip().replace(' ', '')
+        totp = pyotp.TOTP(user.totp_secret)
+        # valid_window=1 tolerates the code from one 30s step before/after now,
+        # so a slightly-off device clock doesn't lock a legitimate user out.
+        if code and totp.verify(code, valid_window=1):
+            del request.session['pending_2fa_user_id']
+            login(request, user)
+            messages.success(request, f"Access Granted. Logged in as {user.get_role_display()}.")
+            return redirect('dashboard')
+
+        matched_backup_code = None
+        for backup_code in user.backup_codes.filter(used=False):
+            if code and check_password(code, backup_code.code_hash):
+                matched_backup_code = backup_code
+                break
+        if matched_backup_code:
+            matched_backup_code.used = True
+            matched_backup_code.save(update_fields=['used'])
+            del request.session['pending_2fa_user_id']
+            login(request, user)
+            remaining = user.backup_codes.filter(used=False).count()
+            messages.warning(
+                request,
+                f"Logged in with a backup code — it can't be used again ({remaining} remaining). "
+                "Regenerate your backup codes from Security settings if you're running low."
+            )
+            return redirect('dashboard')
+
+        messages.error(request, "Invalid or expired code.")
+
+    return render(request, 'verify_2fa.html', {'username': user.username})
+
 # ================= 2. SESSION LOGOUT UTILITY =================
 @login_required
 def logout_view(request):
     logout(request)
     return redirect('login')
+
+
+@login_required
+def security_view(request):
+    """
+    Self-service 2FA enrollment/disablement for the logged-in user. Opt-in —
+    nothing here is enforced; a user who never visits this page just keeps
+    logging in with a password like today.
+
+    Setup is two steps so a botched scan never silently half-enables 2FA:
+    'start_setup' generates a secret and stashes it in the session (NOT saved
+    to the user yet); 'confirm_setup' only commits it to the user record —
+    and only then generates backup codes — once the user proves they can
+    actually produce a valid code from it.
+    """
+    user = request.user
+    setup_secret = request.session.get('totp_setup_secret')
+    new_backup_codes = None
+
+    if request.method == 'POST':
+        action = request.POST.get('form_action')
+
+        if action == 'start_setup':
+            setup_secret = pyotp.random_base32()
+            request.session['totp_setup_secret'] = setup_secret
+
+        elif action == 'confirm_setup':
+            pending_secret = request.session.get('totp_setup_secret')
+            code = (request.POST.get('code') or '').strip().replace(' ', '')
+            if not pending_secret:
+                messages.error(request, "Setup session expired — start again.")
+            elif code and pyotp.TOTP(pending_secret).verify(code, valid_window=1):
+                user.totp_secret = pending_secret
+                user.totp_enabled = True
+                user.save(update_fields=['totp_secret', 'totp_enabled'])
+                del request.session['totp_setup_secret']
+                setup_secret = None
+                new_backup_codes = _regenerate_backup_codes(user)
+                messages.success(request, "Two-factor authentication enabled. Save your backup codes now — they're only shown once.")
+            else:
+                messages.error(request, "That code didn't match — check the app and try again.")
+                setup_secret = pending_secret
+
+        elif action == 'disable':
+            password = request.POST.get('confirm_password') or ''
+            if not user.check_password(password):
+                messages.error(request, "Incorrect password — two-factor authentication was not disabled.")
+            else:
+                user.totp_enabled = False
+                user.totp_secret = None
+                user.save(update_fields=['totp_enabled', 'totp_secret'])
+                user.backup_codes.all().delete()
+                messages.success(request, "Two-factor authentication disabled.")
+
+        elif action == 'regenerate_backup_codes':
+            if user.totp_enabled:
+                new_backup_codes = _regenerate_backup_codes(user)
+                messages.success(request, "New backup codes generated — any old ones no longer work.")
+
+    qr_data_uri = None
+    if setup_secret and not user.totp_enabled:
+        provisioning_uri = pyotp.TOTP(setup_secret).provisioning_uri(
+            name=user.username, issuer_name="Malaria Insights"
+        )
+        qr_img = qrcode.make(provisioning_uri)
+        buf = io.BytesIO()
+        qr_img.save(buf, format='PNG')
+        qr_data_uri = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+    context = {
+        'totp_enabled': user.totp_enabled,
+        'setup_secret': setup_secret,
+        'qr_data_uri': qr_data_uri,
+        'new_backup_codes': new_backup_codes,
+        'backup_codes_remaining': user.backup_codes.filter(used=False).count() if user.totp_enabled else 0,
+    }
+    return render(request, 'security.html', context)
+
+
+def _regenerate_backup_codes(user):
+    """Wipes any existing backup codes and issues 8 new ones. Returns the raw
+    (unhashed) codes — the only moment they exist in plaintext — for one-time
+    display; only their hashes are persisted."""
+    user.backup_codes.all().delete()
+    raw_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+    TOTPBackupCode.objects.bulk_create([
+        TOTPBackupCode(user=user, code_hash=make_password(code)) for code in raw_codes
+    ])
+    return raw_codes
 
 # ================= 3. HOME VIEW: OVERVIEW DASHBOARD =================
 @login_required

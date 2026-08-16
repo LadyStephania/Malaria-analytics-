@@ -6,6 +6,8 @@ urlpatterns = [
     path('', views.login_view, name='login'),
     path('login/', views.login_view),  # alias — '/login/' is the natural guess, keep the root path as the canonical `{% url 'login' %}` target
     path('logout/', views.logout_view, name='logout'),
+    path('verify-2fa/', views.verify_2fa_view, name='verify_2fa'),
+    path('account/security/', views.security_view, name='security'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('dashboard/year/<int:year>/', views.year_breakdown_view, name='year_breakdown'),
     path('analytics/', views.analytics_view, name='analytics'),

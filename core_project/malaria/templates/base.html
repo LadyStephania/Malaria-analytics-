@@ -109,7 +109,8 @@
             {% if request.user.role == 'ADMIN' %}
             <li class="sidebar-item"><a href="{% url 'users' %}" class="sidebar-link {% if request.resolver_match.url_name == 'users' %}active-tab{% endif %}"><i class="bi bi-people-fill"></i> Users Control</a></li>
             {% endif %}
-            <li class="sidebar-item" style="margin-top: 30px;"><a href="{% url 'logout' %}" class="sidebar-link text-danger bg-danger bg-opacity-10"><i class="bi bi-box-arrow-left"></i> Logout Session</a></li>
+            <li class="sidebar-item" style="margin-top: 30px;"><a href="{% url 'security' %}" class="sidebar-link {% if request.resolver_match.url_name == 'security' %}active-tab{% endif %}"><i class="bi bi-shield-lock"></i> Security</a></li>
+            <li class="sidebar-item"><a href="{% url 'logout' %}" class="sidebar-link text-danger bg-danger bg-opacity-10"><i class="bi bi-box-arrow-left"></i> Logout Session</a></li>
         </ul>
     </aside>
     <main class="main-workspace">
