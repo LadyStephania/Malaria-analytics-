@@ -239,24 +239,33 @@ def _fetch_forecast_days(lat, lon):
         "timezone": "Africa/Lusaka",
         "forecast_days": 14,
     }
-    try:
-        response = requests.get(api_url, params=params, timeout=10)
-        api_data = response.json().get('daily', {})
-        dates = api_data.get('time', [])
-        max_temps = api_data.get('temperature_2m_max', [])
-        rain_sums = api_data.get('rain_sum', [])
+    # One retry before giving up — a single slow/dropped response from the
+    # external API used to immediately show "Unavailable" even though the API
+    # itself was fine moments later on a second attempt (observed directly:
+    # Decision Support showed "Unavailable" for a district that succeeded on
+    # the very next request). A live third-party API failing once isn't the
+    # same as it being down.
+    for attempt in range(2):
+        try:
+            response = requests.get(api_url, params=params, timeout=10)
+            api_data = response.json().get('daily', {})
+            dates = api_data.get('time', [])
+            max_temps = api_data.get('temperature_2m_max', [])
+            rain_sums = api_data.get('rain_sum', [])
 
-        days = []
-        for i in range(len(dates)):
-            rain_val = rain_sums[i] if rain_sums[i] is not None else 0.0
-            temp_val = max_temps[i] if max_temps[i] is not None else 26.0
-            _label, badge = _classify_risk(rain_val, temp_val)
-            days.append({'date': dates[i], 'rain': rain_val, 'temp': temp_val, 'badge': badge})
+            days = []
+            for i in range(len(dates)):
+                rain_val = rain_sums[i] if rain_sums[i] is not None else 0.0
+                temp_val = max_temps[i] if max_temps[i] is not None else 26.0
+                _label, badge = _classify_risk(rain_val, temp_val)
+                days.append({'date': dates[i], 'rain': rain_val, 'temp': temp_val, 'badge': badge})
 
-        cache.set(cache_key, days, timeout=6 * 60 * 60)
-        return days
-    except Exception:
-        return None
+            cache.set(cache_key, days, timeout=6 * 60 * 60)
+            return days
+        except Exception:
+            if attempt == 0:
+                continue
+            return None
 
 
 def _forecast_risk_summary(days):
@@ -1267,6 +1276,9 @@ def decision_view(request):
     # so the queue and this detail panel always agree on the same district's tier.
     recent_cases, prior_cases, reference_date, window_len, burden_label, burden_badge, incidence, prior_window_len = _recent_case_burden(selected_district)
     burden_rank = _RISK_RANK[burden_badge]
+    # "553.6 per 10,000" as "roughly 1 in 18 people" — same rate, easier to say
+    # out loud and defend without doing mental unit conversion on the spot.
+    incidence_one_in_n = round(10000 / incidence) if incidence else None
 
     # Only a genuine like-for-like comparison when the prior window is fully
     # populated with _BURDEN_WINDOW periods too — a partial leftover window
@@ -1353,6 +1365,7 @@ def decision_view(request):
         'recent_cases': recent_cases,
         'burden_label': burden_label,
         'incidence_per_10k': incidence,
+        'incidence_one_in_n': incidence_one_in_n,
         'reference_date': reference_date,
         'has_data': reference_date is not None,
         'target_label': target_label,
