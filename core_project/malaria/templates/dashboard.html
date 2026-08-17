@@ -140,7 +140,7 @@
                                     <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
                                     <td class="text-end fw-semibold">{{ row.cases }}</td>
                                     <td class="text-end">
-                                        {% if row.incidence_pct is not None %}{{ row.incidence_pct }}%<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
+                                        {% if row.incidence_pct is not None %}About {{ row.incidence_pct }}%<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
