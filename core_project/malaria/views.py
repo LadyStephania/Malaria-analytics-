@@ -907,6 +907,16 @@ def _random_forest_forecast(lag_periods):
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
 
+    # Naive baseline: "predict this period = last period's count" — feature
+    # index 2 is exactly that value, already one of the model's own inputs.
+    # A trained model that can't beat this trivial guess isn't earning its
+    # complexity, and that's a real possibility worth checking every time,
+    # not an edge case — report it honestly rather than only ever showing the
+    # RF's own numbers in isolation.
+    naive_predictions = X_test[:, 2]
+    naive_mae = mean_absolute_error(y_test, naive_predictions)
+    naive_r2 = r2_score(y_test, naive_predictions)
+
     importance = sorted(
         zip(_RF_FEATURE_NAMES, model.feature_importances_), key=lambda pair: -pair[1]
     )
@@ -927,12 +937,17 @@ def _random_forest_forecast(lag_periods):
     # average district's case count," not a distorted average-of-ratios.
     mean_actual = float(np.mean(y_test))
     mae_pct = round(mae / mean_actual * 100, 1) if mean_actual else None
+    naive_mae_pct = round(naive_mae / mean_actual * 100, 1) if mean_actual else None
 
     return {
         'available': True,
         'r2': r2_score(y_test, predictions),
         'mae': mae,
         'mae_pct': mae_pct,
+        'beats_naive_baseline': mae < naive_mae,
+        'naive_mae': naive_mae,
+        'naive_mae_pct': naive_mae_pct,
+        'naive_r2': naive_r2,
         'n_train': len(train_samples),
         'n_test': len(test_samples),
         'test_year': test_year,
@@ -1112,6 +1127,9 @@ def analytics_view(request):
         'rf_accuracy_word': _describe_forecast_accuracy(rf['r2']) if rf.get('available') else None,
         'rf_mae': f"{rf['mae']:.1f}" if rf.get('available') else None,
         'rf_mae_pct': rf.get('mae_pct') if rf.get('available') else None,
+        'rf_beats_naive': rf.get('beats_naive_baseline'),
+        'rf_naive_mae': f"{rf['naive_mae']:.1f}" if rf.get('available') else None,
+        'rf_naive_mae_pct': rf.get('naive_mae_pct'),
         'rf_n_train': rf.get('n_train'),
         'rf_n_test': rf.get('n_test'),
         'rf_test_year': rf.get('test_year'),

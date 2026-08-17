@@ -86,6 +86,36 @@
     a shorter delay, to enable this section.
 </div>
 {% else %}
+
+<!-- Baseline check — never show the model's own numbers without also showing
+     whether it actually beats the simplest possible guess. -->
+<div class="premium-card mb-4 border-0" style="background: {% if rf_beats_naive %}#f0fdf4{% else %}#fef2f2{% endif %};">
+    <div class="d-flex align-items-start gap-3">
+        <div class="icon-box {% if rf_beats_naive %}bg-success{% else %}bg-danger{% endif %} bg-opacity-15 {% if rf_beats_naive %}text-success{% else %}text-danger{% endif %}" style="width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i class="bi {% if rf_beats_naive %}bi-check-lg{% else %}bi-exclamation-triangle-fill{% endif %} fs-5"></i>
+        </div>
+        <div>
+            {% if rf_beats_naive %}
+            <p class="fw-semibold text-dark mb-1">This model beats the simplest possible guess.</p>
+            <p class="text-muted small mb-0">
+                Compared against just predicting "same as last time" (off by about {{ rf_naive_mae_pct }}% on average),
+                the model is off by about {{ rf_mae_pct }}% &mdash; genuinely more accurate than a naive guess, not just
+                a complicated way of restating one.
+            </p>
+            {% else %}
+            <p class="fw-semibold text-dark mb-1">Right now, this model does NOT beat the simplest possible guess.</p>
+            <p class="text-muted small mb-0">
+                Just predicting "same as last time" is off by about {{ rf_naive_mae_pct }}% on average &mdash; this
+                model is off by about {{ rf_mae_pct }}%, which is worse. The model isn't currently earning its
+                complexity for this delay setting; treat its predictions with real caution, and take this as an
+                honest limitation of the current model, not a hidden one.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% if rf_available %}
 <div class="row g-4 mb-4">
     <div class="col-12 col-md-4">
         <div class="premium-card h-100 d-flex flex-column justify-content-between">
