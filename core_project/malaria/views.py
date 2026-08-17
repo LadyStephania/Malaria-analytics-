@@ -918,10 +918,21 @@ def _random_forest_forecast(lag_periods):
         key=lambda triple: -triple[1],
     )
 
+    mae = mean_absolute_error(y_test, predictions)
+    # MAE as a % of the *mean* actual case count across the whole test set — not
+    # a per-district %-error averaged across districts, which a single
+    # low-case district (e.g. actual=5) could blow up to an absurd percentage
+    # even from a small absolute miss. One shared denominator keeps this
+    # stable and means "our typical miss is about a third the size of an
+    # average district's case count," not a distorted average-of-ratios.
+    mean_actual = float(np.mean(y_test))
+    mae_pct = round(mae / mean_actual * 100, 1) if mean_actual else None
+
     return {
         'available': True,
         'r2': r2_score(y_test, predictions),
-        'mae': mean_absolute_error(y_test, predictions),
+        'mae': mae,
+        'mae_pct': mae_pct,
         'n_train': len(train_samples),
         'n_test': len(test_samples),
         'test_year': test_year,
@@ -1100,6 +1111,7 @@ def analytics_view(request):
         'rf_r2_pct': round(rf['r2'] * 100) if rf.get('available') else None,
         'rf_accuracy_word': _describe_forecast_accuracy(rf['r2']) if rf.get('available') else None,
         'rf_mae': f"{rf['mae']:.1f}" if rf.get('available') else None,
+        'rf_mae_pct': rf.get('mae_pct') if rf.get('available') else None,
         'rf_n_train': rf.get('n_train'),
         'rf_n_test': rf.get('n_test'),
         'rf_test_year': rf.get('test_year'),
