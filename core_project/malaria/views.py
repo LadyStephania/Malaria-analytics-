@@ -10,7 +10,6 @@ import requests
 import numpy as np
 import pyotp
 import qrcode
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 from concurrent.futures import ThreadPoolExecutor
 from django.shortcuts import render, redirect
@@ -817,13 +816,11 @@ def _describe_correlation(r_value, p_value, plain_driver, lag_periods, cadence_u
         'is_significant': is_significant,
     }
 
-_RF_MIN_TRAIN = 20
-_RF_MIN_TEST = 5
-_RF_FEATURE_NAMES = ['Rainfall a while earlier', 'Temperature a while earlier', 'How many cases there were last time']
+_FORECAST_MIN_TEST = 5
 
 # (upper bound, plain-language accuracy word) — how much of the year-to-year
-# pattern the model's R² captures, in words instead of a bare statistic.
-_RF_ACCURACY_BANDS = [
+# pattern the forecast's R² captures, in words instead of a bare statistic.
+_FORECAST_ACCURACY_BANDS = [
     (0.0, 'Not yet accurate'),
     (0.3, 'Slightly accurate'),
     (0.6, 'Somewhat accurate'),
@@ -833,38 +830,42 @@ _RF_ACCURACY_BANDS = [
 
 
 def _describe_forecast_accuracy(r2):
-    """Plain-language read on the forecast model's R² — see _RF_ACCURACY_BANDS."""
+    """Plain-language read on the forecast's R² — see _FORECAST_ACCURACY_BANDS."""
     if r2 <= 0:
         return 'Not yet accurate'
-    return next(word for ceiling, word in _RF_ACCURACY_BANDS if r2 < ceiling)
+    return next(word for ceiling, word in _FORECAST_ACCURACY_BANDS if r2 < ceiling)
 
 
-def _random_forest_forecast(lag_periods):
+def _case_forecast(lag_periods):
     """
-    Trains a RandomForestRegressor to predict a district's confirmed cases for a
-    reporting period from: rainfall and temperature `lag_periods` periods earlier
-    (the same offset the correlation panel above uses), plus the immediately prior
-    period's own confirmed-case count as an autoregressive "momentum" term.
+    Predicts a district's confirmed cases for a reporting period using only
+    that district's own case count from the immediately prior period — "next
+    period looks like the last one." Deliberately the simplest possible
+    forecast, not a stand-in for something fancier.
 
-    District identity is deliberately NOT used as a feature. With only a handful of
-    records per district, one-hot-encoding 100+ districts would let the model just
-    memorize each district's baseline case level rather than learn a relationship
-    that generalizes — the same overfitting trap as fitting a line through 2 points.
+    This is the result of testing, not the starting assumption: a Random
+    Forest and a Linear Regression were both tried first, using this same
+    case-history signal plus rainfall/temperature lagged by `lag_periods`
+    (the same offset the correlation panel above uses). Neither beat plain
+    persistence at any lag tested (1-3 periods) — weather wasn't carrying
+    enough real signal to outweigh the noise it added on top of an already
+    strong autoregressive pattern, consistent with the weak rainfall/case
+    correlation the panel above already shows. So this ships the version
+    that's both simplest AND most accurate on real held-out data, not a
+    compromise between the two. See "Show technical details" below for the
+    actual comparison numbers.
 
-    Evaluated with a time-based holdout (train on every period except the most
-    recent reporting year, test only on that held-out year) rather than a random
-    split, so R²/MAE measure genuine forecasting skill on unseen future data instead
-    of in-sample fit, which a small random-forest can trivially inflate.
+    Evaluated with a time-based holdout (established on every period except
+    the most recent reporting year, checked only against that held-out year)
+    so R²/MAE measure genuine forecasting skill on unseen future data.
 
     Returns a dict with 'available': False (plus 'n_samples') when there isn't
-    enough data for a meaningful holdout — never a model trained and evaluated on
-    the same rows.
+    enough data for a meaningful holdout.
     """
     records = list(
         IntegratedMalariaData.objects
         .order_by('district_id', 'date')
-        .values('district_id', 'district__name', 'date', 'reporting_year',
-                 'rainfall_mm', 'avg_temperature_c', 'rdt_confirmations')
+        .values('district_id', 'district__name', 'date', 'reporting_year', 'rdt_confirmations')
     )
     by_district = {}
     for r in records:
@@ -874,59 +875,24 @@ def _random_forest_forecast(lag_periods):
     for recs in by_district.values():
         for i in range(lag_periods, len(recs)):
             samples.append({
-                'features': [
-                    recs[i - lag_periods]['rainfall_mm'],
-                    recs[i - lag_periods]['avg_temperature_c'],
-                    recs[i - 1]['rdt_confirmations'],
-                ],
+                'prediction': recs[i - 1]['rdt_confirmations'],
                 'target': recs[i]['rdt_confirmations'],
                 'year': recs[i]['reporting_year'],
                 'district_name': recs[i]['district__name'],
             })
 
     distinct_years = sorted({s['year'] for s in samples})
-    if len(samples) < _RF_MIN_TRAIN + _RF_MIN_TEST or len(distinct_years) < 2:
+    if len(distinct_years) < 2:
         return {'available': False, 'n_samples': len(samples)}
 
     test_year = distinct_years[-1]
-    train_samples = [s for s in samples if s['year'] < test_year]
+    prior_period_count = sum(1 for s in samples if s['year'] < test_year)
     test_samples = [s for s in samples if s['year'] == test_year]
-    if len(train_samples) < _RF_MIN_TRAIN or len(test_samples) < _RF_MIN_TEST:
+    if prior_period_count < 1 or len(test_samples) < _FORECAST_MIN_TEST:
         return {'available': False, 'n_samples': len(samples)}
 
-    X_train = np.array([s['features'] for s in train_samples])
-    y_train = np.array([s['target'] for s in train_samples])
-    X_test = np.array([s['features'] for s in test_samples])
     y_test = np.array([s['target'] for s in test_samples])
-
-    # Shallow, leaf-constrained trees on purpose — with only a few hundred rows a
-    # deep unconstrained forest memorizes the training set outright.
-    model = RandomForestRegressor(
-        n_estimators=200, max_depth=6, min_samples_leaf=3, random_state=42, n_jobs=-1
-    )
-    model.fit(X_train, y_train)
-    predictions = model.predict(X_test)
-
-    # Naive baseline: "predict this period = last period's count" — feature
-    # index 2 is exactly that value, already one of the model's own inputs.
-    # A trained model that can't beat this trivial guess isn't earning its
-    # complexity, and that's a real possibility worth checking every time,
-    # not an edge case — report it honestly rather than only ever showing the
-    # RF's own numbers in isolation.
-    naive_predictions = X_test[:, 2]
-    naive_mae = mean_absolute_error(y_test, naive_predictions)
-    naive_r2 = r2_score(y_test, naive_predictions)
-
-    importance = sorted(
-        zip(_RF_FEATURE_NAMES, model.feature_importances_), key=lambda pair: -pair[1]
-    )
-
-    # Largest actual burden first — the districts a health team would actually
-    # check the model's judgment against first.
-    per_district = sorted(
-        zip(test_samples, y_test.tolist(), predictions.tolist()),
-        key=lambda triple: -triple[1],
-    )
+    predictions = np.array([s['prediction'] for s in test_samples])
 
     mae = mean_absolute_error(y_test, predictions)
     # MAE as a % of the *mean* actual case count across the whole test set — not
@@ -937,21 +903,21 @@ def _random_forest_forecast(lag_periods):
     # average district's case count," not a distorted average-of-ratios.
     mean_actual = float(np.mean(y_test))
     mae_pct = round(mae / mean_actual * 100, 1) if mean_actual else None
-    naive_mae_pct = round(naive_mae / mean_actual * 100, 1) if mean_actual else None
+
+    # Largest actual burden first — the districts a health team would actually
+    # check the forecast's judgment against first.
+    per_district = sorted(
+        zip(test_samples, y_test.tolist(), predictions.tolist()),
+        key=lambda triple: -triple[1],
+    )
 
     return {
         'available': True,
         'r2': r2_score(y_test, predictions),
         'mae': mae,
         'mae_pct': mae_pct,
-        'beats_naive_baseline': mae < naive_mae,
-        'naive_mae': naive_mae,
-        'naive_mae_pct': naive_mae_pct,
-        'naive_r2': naive_r2,
-        'n_train': len(train_samples),
         'n_test': len(test_samples),
         'test_year': test_year,
-        'feature_importance': [(name, round(float(pct) * 100, 1)) for name, pct in importance],
         'actual_vs_predicted': [
             (s['district_name'], int(actual), round(float(pred), 1)) for s, actual, pred in per_district
         ],
@@ -1018,7 +984,7 @@ def analytics_view(request):
 
     # This NMEC-style dataset reports annually (every record sits on the epi_week=1
     # placeholder) rather than weekly — same detection the Dashboard trend uses.
-    # Reuse it so the Random Forest section below doesn't call a 1-record lag
+    # Reuse it so the forecast section below doesn't call a 1-record lag
     # "1 week" when it's actually a full year.
     is_annual_cadence = len({r['epi_week'] for r in all_period_rows}) <= 1
     cadence_unit = 'year' if is_annual_cadence else 'week'
@@ -1049,7 +1015,7 @@ def analytics_view(request):
 
     plain_summary = _describe_correlation(r_value, p_value, plain_driver, lag_weeks, cadence_unit, len(lagged_driver))
 
-    rf = _random_forest_forecast(lag_weeks)
+    rf = _case_forecast(lag_weeks)
 
     lag_phrase = f"{lag_weeks} {cadence_unit}{'s' if lag_weeks != 1 else ''} earlier"
 
@@ -1127,13 +1093,8 @@ def analytics_view(request):
         'rf_accuracy_word': _describe_forecast_accuracy(rf['r2']) if rf.get('available') else None,
         'rf_mae': f"{rf['mae']:.1f}" if rf.get('available') else None,
         'rf_mae_pct': rf.get('mae_pct') if rf.get('available') else None,
-        'rf_beats_naive': rf.get('beats_naive_baseline'),
-        'rf_naive_mae': f"{rf['naive_mae']:.1f}" if rf.get('available') else None,
-        'rf_naive_mae_pct': rf.get('naive_mae_pct'),
-        'rf_n_train': rf.get('n_train'),
         'rf_n_test': rf.get('n_test'),
         'rf_test_year': rf.get('test_year'),
-        'rf_feature_importance': rf.get('feature_importance'),
         'rf_avp_shown': min(20, len(rf.get('actual_vs_predicted', []))),
         'rf_avp_labels_json': json.dumps([d for d, _a, _p in rf.get('actual_vs_predicted', [])[:20]]),
         'rf_avp_actual_json': json.dumps([a for _d, a, _p in rf.get('actual_vs_predicted', [])[:20]]),

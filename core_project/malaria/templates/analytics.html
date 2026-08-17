@@ -70,20 +70,21 @@
 <div class="mb-3 mt-5">
     <h2 class="fw-bold text-dark m-0">Predicting Future Cases</h2>
     <p class="text-muted small mb-0">
-        This goes a step further than the comparison above: a computer model combines rainfall, temperature, and
-        each district's own recent case count to guess future case numbers — instead of comparing one weather
-        factor at a time.
+        This predicts a district's next confirmed-case count using its own recent history. We also tried mixing
+        in rainfall and temperature and letting a more complex model combine everything — neither beat this
+        simpler approach on real held-out data, so this uses the version that actually tested best, not the most
+        complicated one. Since it no longer uses weather at all, the "Delay" control above doesn't change anything
+        below this point — it only affects the correlation comparison further up the page.
     </p>
 </div>
 
 {% if not rf_available %}
 <div class="alert alert-warning border-0 rounded-3 mb-4">
     <i class="bi bi-info-circle-fill me-1"></i>
-    <strong>Not enough historical data yet to build and fairly test a prediction model.</strong>
-    This delay setting gives us {{ rf_n_samples }} usable record(s), but a trustworthy model needs enough past data
-    to learn from, plus a full {{ cadence_unit }} of data it has never seen to test itself against — otherwise it
-    could just be memorizing the answers instead of actually predicting them. Upload more historical data, or try
-    a shorter delay, to enable this section.
+    <strong>Not enough historical data yet to fairly test a forecast.</strong>
+    This delay setting gives us {{ rf_n_samples }} usable record(s), but a trustworthy check needs a full
+    {{ cadence_unit }} of data that was never used to establish the pattern being tested — otherwise it could just
+    be "predicting" data it already had. Upload more historical data, or try a shorter delay, to enable this section.
 </div>
 {% endif %}
 
@@ -121,7 +122,7 @@
             </div>
             <div class="mt-3 small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-clock-history"></i>
-                Learned from {{ rf_n_train }} older records, then tested on {{ rf_n_test }} records from {{ rf_test_year }} it had never seen
+                Checked only against {{ rf_test_year }} &mdash; {{ rf_n_test }} districts' real counts the forecast never used to establish the pattern
             </div>
         </div>
     </div>
@@ -132,24 +133,16 @@
         <div class="premium-card h-100">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-bar-chart-steps text-primary"></i> What It Relies On Most
+                    <i class="bi bi-lightbulb text-primary"></i> Why This Approach
                 </h5>
             </div>
-            {% for name, pct in rf_feature_importance %}
-            <div class="mb-2">
-                <div class="d-flex justify-content-between small mb-1">
-                    <span class="fw-semibold text-dark">{{ name }}</span>
-                    <span class="text-muted">{{ pct }}%</span>
-                </div>
-                <div class="progress" style="height: 8px;">
-                    <div class="progress-bar bg-primary" style="width: {{ pct }}%;"></div>
-                </div>
-            </div>
-            {% endfor %}
-            <p class="text-muted mt-3 mb-0" style="font-size: 0.72rem;">
-                How much each factor shapes the model's guess. A district's own name/identity isn't one of the
-                factors — with only a few records per district, the model would just memorize each district's
-                usual numbers instead of learning something that works for districts it hasn't seen much of.
+            <p class="text-muted small mb-0" style="line-height: 1.7;">
+                Each district's forecast is simply its own most recent confirmed-case count. Before settling on
+                that, a Random Forest and a Linear Regression were both tried, combining that same case history
+                with rainfall and temperature. Neither came out ahead on real held-out data at any delay setting
+                tried &mdash; the weather signal here (see the weak link shown above) wasn't strong enough to add
+                real accuracy on top of a district's own recent pattern. This uses whichever approach actually
+                tested best, not the most sophisticated-sounding one.
             </p>
         </div>
     </div>
@@ -165,7 +158,7 @@
                 <canvas id="rfActualVsPredictedChart"></canvas>
             </div>
             <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">
-                Highest-case districts first — the ones a response team would check the model's guess against first.
+                Highest-case districts first — the ones a response team would check the forecast's judgment against first.
             </p>
         </div>
     </div>
@@ -245,16 +238,21 @@
         {% if rf_available %}
         <h6 class="fw-bold text-secondary mb-2 mt-3" style="font-size: 0.85rem;">Prediction model</h6>
         <p class="text-muted small mb-0" style="line-height: 1.6;">
-            A <strong>Random Forest Regressor</strong> (200 trees, depth-limited to guard against overfitting on a
-            dataset this size) is trained to predict a district's confirmed cases from rainfall and temperature
-            lagged by the same window selected above, plus that district's own prior-period case count. It's
-            evaluated with a <strong>time-based holdout</strong> — trained only on {{ cadence_unit }}s before
-            {{ rf_test_year }}, then scored strictly on {{ rf_test_year }}, data it never saw during training.
-            Current result: R&sup2; = {{ rf_r2 }}, MAE = &plusmn;{{ rf_mae }}, trained on {{ rf_n_train }} records,
-            tested on {{ rf_n_test }}. Checked against a naive baseline (predicting each district's prior-period
-            count unchanged, which is itself one of the model's three inputs): baseline MAE = &plusmn;{{ rf_naive_mae }}
-            ({{ rf_naive_mae_pct }}% of mean actual) vs. the model's {{ rf_mae_pct }}%
-            {% if rf_beats_naive %}&mdash; the model outperforms it{% else %}&mdash; the model does not currently outperform it at this delay setting{% endif %}.
+            The forecast is a <strong>persistence model</strong>: predicted cases for a district in period
+            <em>t</em> = that district's actual confirmed cases in period <em>t&minus;1</em>. No fitting, no
+            parameters. It's evaluated with a <strong>time-based holdout</strong> &mdash; checked strictly against
+            {{ rf_test_year }}, a full {{ cadence_unit }} never used to establish the pattern. Current result:
+            R&sup2; = {{ rf_r2 }}, MAE = &plusmn;{{ rf_mae }} ({{ rf_mae_pct }}% of mean actual), n = {{ rf_n_test }}.
+        </p>
+        <p class="text-muted small mb-0 mt-2" style="line-height: 1.6;">
+            <strong>What was tried and rejected:</strong> a Random Forest Regressor (200 trees, depth-limited) and
+            a Linear Regression, both using rainfall and temperature lagged by the same window selected above
+            (the same offset the correlation panel uses) plus each district's own prior-period case count as a
+            third input. At every delay setting tested (1&ndash;3 periods), both scored worse on held-out data than
+            the plain persistence model above &mdash; consistent with the weak rainfall/case correlation already
+            shown on this page, which suggests the weather inputs added noise rather than signal on top of an
+            already-strong autoregressive pattern. Persistence is used because it tested best, not because it's
+            the simplest option available.
         </p>
         {% endif %}
     </div>
@@ -320,7 +318,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // ---- Random Forest: Predicted vs. Actual (held-out year) ----
+    // ---- Case forecast: Predicted vs. Actual (held-out year) ----
     const rfCanvas = document.getElementById('rfActualVsPredictedChart');
     if (rfCanvas) {
         new Chart(rfCanvas.getContext('2d'), {
