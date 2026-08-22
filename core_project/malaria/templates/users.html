@@ -2,22 +2,22 @@
 {% block title %}Users | Malaria Insights{% endblock %}
 {% block content %}
 <div class="mb-4">
-    <span class="text-primary fw-bold text-uppercase small">Access Control Panel</span>
-    <h2 class="fw-bold text-dark m-0">Personnel Identity Management</h2>
+    <h2 class="fw-bold text-dark m-0">Users</h2>
+    <p class="text-muted small mb-0">Add new accounts, and manage who has access.</p>
 </div>
 <div class="row g-4">
     <div class="col-lg-5">
         <div class="premium-card">
-            <h5 class="fw-bold mb-3"><i class="bi bi-person-plus-fill text-primary me-2"></i>Provision New Profile Account</h5>
+            <h5 class="fw-bold mb-3"><i class="bi bi-person-plus-fill text-primary me-2"></i>Add New User</h5>
             <form method="POST">
                 {% csrf_token %}
                 <input type="hidden" name="form_action" value="create">
                 <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted" for="newUsername">User Handle</label>
+                    <label class="form-label small fw-bold text-muted" for="newUsername">Username</label>
                     <input type="text" id="newUsername" name="new_username" class="form-control" placeholder="e.g. j_bwalya" required>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted" for="newRole">Assign Architecture Role</label>
+                    <label class="form-label small fw-bold text-muted" for="newRole">Role</label>
                     <select id="newRole" name="new_role" class="form-select">
                         <option value="CLERK">Data Entry Clerk</option>
                         <option value="EPIDEMIOLOGIST">Public Health Epidemiologist</option>
@@ -25,7 +25,7 @@
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted" for="newDistrict">District Assignment (optional)</label>
+                    <label class="form-label small fw-bold text-muted" for="newDistrict">District (optional)</label>
                     <input type="text" id="newDistrict" name="new_district" class="form-control" placeholder="e.g. Chadiza">
                 </div>
                 <div class="mb-3">
@@ -36,19 +36,19 @@
                     <label class="form-label small fw-bold text-muted" for="newPasswordConfirm">Confirm Password</label>
                     <input type="password" id="newPasswordConfirm" name="new_password_confirm" class="form-control" placeholder="••••••••" autocomplete="new-password" required>
                 </div>
-                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Authorize and Save Profile</button>
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Create User</button>
             </form>
         </div>
     </div>
     <div class="col-lg-7">
         <div class="premium-card p-0 overflow-hidden">
-            <div class="p-3 bg-light border-bottom fw-bold text-dark">Active Authorized Registry</div>
+            <div class="p-3 bg-light border-bottom fw-bold text-dark">All Users</div>
             <div class="table-responsive">
                 <table class="table align-middle m-0" style="font-size:0.9rem;">
                     <thead class="table-light">
                         <tr>
-                            <th>Username Handle</th>
-                            <th>System Role Assignment</th>
+                            <th>Username</th>
+                            <th>Role</th>
                             <th>District</th>
                             <th>Status</th>
                             <th class="text-end">Actions</th>

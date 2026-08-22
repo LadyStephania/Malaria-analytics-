@@ -339,10 +339,10 @@ def login_view(request):
                 request.session['pending_2fa_user_id'] = user.id
                 return redirect('verify_2fa')
             login(request, user)
-            messages.success(request, f"Access Granted. Logged in as {user.get_role_display()}.")
+            messages.success(request, f"Logged in as {user.get_role_display()}.")
             return redirect('dashboard')
         else:
-            messages.error(request, "Invalid credentials. Access Denied.")
+            messages.error(request, "Incorrect username or password.")
     return render(request, 'login.html')
 
 
@@ -370,7 +370,7 @@ def verify_2fa_view(request):
         if code and totp.verify(code, valid_window=1):
             del request.session['pending_2fa_user_id']
             login(request, user)
-            messages.success(request, f"Access Granted. Logged in as {user.get_role_display()}.")
+            messages.success(request, f"Logged in as {user.get_role_display()}.")
             return redirect('dashboard')
 
         matched_backup_code = None
@@ -1695,8 +1695,8 @@ def upload_view(request):
 
             messages.success(
                 request,
-                f"Data pipeline successful: {created_count} new observation(s) added, "
-                f"{updated_count} existing observation(s) updated."
+                f"Upload successful: {created_count} new record(s) added, "
+                f"{updated_count} existing record(s) updated."
             )
 
         except Exception:
@@ -1713,7 +1713,7 @@ def upload_view(request):
 @login_required
 def users_view(request):
     if request.user.role != 'ADMIN':
-        messages.error(request, "Unauthorized Access Blocked. Administrative Privileges Required.")
+        messages.error(request, "You need administrator access to view this page.")
         return redirect('dashboard')
 
     if request.method == 'POST':
@@ -1739,9 +1739,9 @@ def users_view(request):
                         SystemUser.objects.create_user(
                             username=u, role=r, password=p, district_assignment=district or None
                         )
-                        messages.success(request, f"New profile ({u}) provisioned successfully.")
+                        messages.success(request, f"User '{u}' created successfully.")
                     except IntegrityError:
-                        messages.error(request, f"Username '{u}' is already taken. Choose a different handle.")
+                        messages.error(request, f"Username '{u}' is already taken. Choose a different one.")
 
         elif form_action == 'toggle':
             target_id = request.POST.get('user_id')

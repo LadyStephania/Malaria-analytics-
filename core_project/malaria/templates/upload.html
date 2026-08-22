@@ -2,26 +2,24 @@
 {% block title %}Upload Data | Malaria Insights{% endblock %}
 {% block content %}
 <div class="mb-4">
-    <span class="text-primary fw-bold text-uppercase small">Data Engineering Port</span>
-    <h2 class="fw-bold text-dark m-0">Secure Secondary Repository Upload</h2>
+    <h2 class="fw-bold text-dark m-0">Upload Data</h2>
+    <p class="text-muted small mb-0">Add or update district-level surveillance records from a CSV file.</p>
 </div>
 
 <div class="premium-card" style="max-width: 600px;">
-    <h5 class="fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet-fill text-success me-2"></i>Ingest Historical Records Sheet</h5>
+    <h5 class="fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet-fill text-success me-2"></i>Upload a CSV File</h5>
 
-    <!-- 🌟 CRITICAL OVERRIDE: enctype allows row spreadsheet file parsing transmission -->
     <form method="POST" enctype="multipart/form-data" class="upload-form">
         {% csrf_token %}
         <div class="mb-3">
-            <label class="form-label text-muted small fw-bold" for="malariaFileInput">Select CSV Surveillance Target Data</label>
-            <!-- 🌟 CRITICAL OVERRIDE: name="malaria_file" matches your python backend view name lookup -->
+            <label class="form-label text-muted small fw-bold" for="malariaFileInput">CSV File</label>
             <input type="file" id="malariaFileInput" name="malaria_file" class="form-control" accept=".csv,text/csv" required>
         </div>
-        <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">Execute Automated Validation & Parse</button>
+        <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">Upload and Process</button>
     </form>
 
-    <div class="mt-3 text-muted small p-3 rounded d-flex justify-content-between align-items-center flex-wrap gap-2" style="background-color:#f1f5f9;">
-        <span>ℹ️ This upload accepts aggregate district-level case counts only — no patient names or other personal identifiers are collected or stored.</span>
+    <div class="mt-3 text-muted small p-3 rounded d-flex justify-content-between align-items-center flex-wrap gap-2" style="background-color: var(--canvas);">
+        <span><i class="bi bi-info-circle me-1"></i>This upload accepts aggregate district-level case counts only — no patient names or other personal identifiers are collected or stored.</span>
         <a href="{% url 'sample_csv' %}" class="btn btn-sm btn-outline-secondary fw-semibold flex-shrink-0"><i class="bi bi-download me-1"></i>Download Sample CSV</a>
     </div>
 
