@@ -5,11 +5,11 @@
 {% endblock %}
 {% block content %}
 <style>
-    #hotspotMap { width: 100%; height: 420px; border-radius: 12px; border: 1px solid var(--border, #e2e8f0); z-index: 1; }
+    #hotspotMap { width: 100%; height: 420px; border-radius: 12px; border: 1px solid var(--border, #e4ddd2); z-index: 1; }
     .map-wrap { position: relative; }
     .map-legend {
         position: absolute; bottom: 12px; left: 12px; z-index: 400;
-        background: rgba(255,255,255,0.95); border: 1px solid var(--border, #e2e8f0);
+        background: rgba(255,255,255,0.95); border: 1px solid var(--border, #e4ddd2);
         border-radius: 10px; padding: 10px 14px; font-size: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .map-legend .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -49,16 +49,16 @@
 
 <div class="row g-4 mb-4">
     <div class="col-12 col-md-4">
-        <div class="premium-card h-100" style="border-left: 4px solid #dc3545;">
+        <div class="premium-card h-100" style="border-left: 4px solid #a3312a;">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Statistically Significant Hot Spots</span>
             <div class="fw-bold text-danger" style="font-size: 2rem;">{{ hot_spots|length }}</div>
             <span class="text-muted small">Of {{ n_analyzed }} districts analyzed</span>
         </div>
     </div>
     <div class="col-12 col-md-4">
-        <div class="premium-card h-100" style="border-left: 4px solid #0d6efd;">
+        <div class="premium-card h-100" style="border-left: 4px solid #3d6b7d;">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Statistically Significant Cold Spots</span>
-            <div class="fw-bold text-primary" style="font-size: 2rem;">{{ cold_spots|length }}</div>
+            <div class="fw-bold text-info" style="font-size: 2rem;">{{ cold_spots|length }}</div>
             <span class="text-muted small">Of {{ n_analyzed }} districts analyzed</span>
         </div>
     </div>
@@ -81,10 +81,10 @@
     <div class="map-wrap">
         <div id="hotspotMap"></div>
         <div class="map-legend">
-            <div class="fw-bold text-uppercase mb-1" style="font-size: 0.68rem; color: var(--muted, #64748b);">Cluster Type</div>
-            <div><span class="swatch" style="background:#dc3545;"></span>Hot spot (significant)</div>
-            <div><span class="swatch" style="background:#0d6efd;"></span>Cold spot (significant)</div>
-            <div><span class="swatch" style="background:#94a3b8;"></span>Not significant</div>
+            <div class="fw-bold text-uppercase mb-1" style="font-size: 0.68rem; color: var(--muted, #78716c);">Cluster Type</div>
+            <div><span class="swatch" style="background:#a3312a;"></span>Hot spot (significant)</div>
+            <div><span class="swatch" style="background:#3d6b7d;"></span>Cold spot (significant)</div>
+            <div><span class="swatch" style="background:#a39e97;"></span>Not significant</div>
         </div>
     </div>
 </div>
@@ -115,7 +115,7 @@
     </div>
     <div class="col-12 col-lg-6">
         <div class="premium-card p-0 overflow-hidden h-100">
-            <div class="p-3 bg-primary bg-opacity-10 border-bottom fw-bold text-primary d-flex align-items-center gap-2">
+            <div class="p-3 bg-info bg-opacity-10 border-bottom fw-bold text-info d-flex align-items-center gap-2">
                 <i class="bi bi-shield-check"></i> Cold Spots &mdash; Ranked by Confidence
             </div>
             <div class="table-responsive" style="max-height: 320px;">
@@ -126,7 +126,7 @@
                         <tr>
                             <td class="fw-semibold text-dark">{{ r.name }}</td>
                             <td class="text-end">{{ r.value }}</td>
-                            <td class="text-end"><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ r.confidence }}</span></td>
+                            <td class="text-end"><span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25">{{ r.confidence }}</span></td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="3" class="text-muted text-center py-3">No statistically significant cold spots at this k.</td></tr>

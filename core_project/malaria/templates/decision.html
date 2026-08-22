@@ -3,26 +3,26 @@
 {% block content %}
 <style>
     .directive-quote-box {
-        background-color: #f8fafc;
-        border-left: 4px solid #dc3545;
+        background-color: var(--canvas, #f5f3ef);
+        border-left: 4px solid #a3312a;
         border-radius: 8px;
         padding: 20px;
         font-family: monospace;
         font-size: 1.05rem;
         font-weight: 600;
-        color: #334155;
+        color: var(--ink, #262220);
         margin-top: 15px;
     }
 
 
     .meta-list-block {
-        background-color: #f8fafc;
+        background-color: var(--canvas, #f5f3ef);
         border-radius: 8px;
         padding: 14px;
         margin-top: 8px;
         font-weight: 600;
         font-size: 0.9rem;
-        color: #1e293b;
+        color: var(--ink, #262220);
     }
 
     .forecast-dot {
@@ -167,7 +167,7 @@
         {% endif %}
     </div>
     <div class="directive-quote-box">
-        <i class="bi bi-quote" style="color: #dc3545; font-size: 1.5rem; vertical-align: middle; margin-right: 4px;"></i>{{ recommended_action }}
+        <i class="bi bi-quote" style="color: #a3312a; font-size: 1.5rem; vertical-align: middle; margin-right: 4px;"></i>{{ recommended_action }}
     </div>
 </div>
 

@@ -76,7 +76,10 @@ def _classify_risk(rainfall_mm, temp_c):
 
 
 _RISK_RANK = {'success': 0, 'warning': 1, 'danger': 2}
-_BADGE_COLOR = {'danger': '#dc3545', 'warning': '#f59e0b', 'success': '#16a34a'}
+# Matches the muted --severity-high/moderate/low tokens in base.html — Leaflet
+# markers and Chart.js can't read CSS custom properties, so the same values
+# have to be duplicated here rather than sourced from one place.
+_BADGE_COLOR = {'danger': '#a3312a', 'warning': '#b9740f', 'success': '#4d7c5f'}
 
 
 def _classify_burden(cases, population):
@@ -731,7 +734,11 @@ def hotspot_view(request):
         results.sort(key=lambda r: -abs(r['z_score']))
         hot_spots = [r for r in results if r['tier'] == 'hot']
         cold_spots = [r for r in results if r['tier'] == 'cold']
-        tier_color = {'hot': '#dc3545', 'cold': '#0d6efd', 'not_significant': '#94a3b8'}
+        # 'cold' uses --bs-info (muted steel blue) rather than the primary teal
+        # accent, so a cold-spot marker doesn't read as "the app's brand color"
+        # on the map; 'not_significant' uses a warm gray matching the rest of
+        # the palette instead of the old cool slate gray.
+        tier_color = {'hot': '#a3312a', 'cold': '#3d6b7d', 'not_significant': '#a39e97'}
         for r in results:
             r['color'] = tier_color[r['tier']]
     else:
@@ -753,8 +760,8 @@ def hotspot_view(request):
 
 # ================= 4. ANALYTICS CORRELATION ENGINE VIEW =================
 _DRIVER_FIELDS = {
-    'rainfall': ('rainfall_mm', 'Rainfall (mm)', 'rainfall', '#0d6efd'),
-    'temperature': ('avg_temperature_c', 'Avg. Temperature (°C)', 'temperature', '#f59e0b'),
+    'rainfall': ('rainfall_mm', 'Rainfall (mm)', 'rainfall', '#0e6e64'),
+    'temperature': ('avg_temperature_c', 'Avg. Temperature (°C)', 'temperature', '#b9740f'),
 }
 # Model-field defaults (models.py) stamped onto any row whose import didn't supply
 # real weather — e.g. the NMEC/DHIS2 case-only CSV. Used below to detect when the

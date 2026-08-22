@@ -9,7 +9,7 @@
         width: 100%;
         height: 380px;
         border-radius: 12px;
-        border: 1px solid var(--border, #e2e8f0);
+        border: 1px solid var(--border, #e4ddd2);
         z-index: 1;
     }
     .icon-box {
@@ -25,7 +25,7 @@
     .map-wrap { position: relative; }
     .map-legend {
         position: absolute; bottom: 12px; left: 12px; z-index: 400;
-        background: rgba(255,255,255,0.95); border: 1px solid var(--border, #e2e8f0);
+        background: rgba(255,255,255,0.95); border: 1px solid var(--border, #e4ddd2);
         border-radius: 10px; padding: 10px 14px; font-size: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .map-legend .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -166,10 +166,10 @@
             <div class="map-wrap">
                 <div id="malariaHotspotMap"></div>
                 <div class="map-legend">
-                    <div class="fw-bold text-uppercase mb-1" style="font-size: 0.68rem; color: var(--muted, #64748b);">Burden Tier</div>
-                    <div><span class="swatch" style="background:#dc3545;"></span>High</div>
-                    <div><span class="swatch" style="background:#f59e0b;"></span>Moderate</div>
-                    <div><span class="swatch" style="background:#16a34a;"></span>Low</div>
+                    <div class="fw-bold text-uppercase mb-1" style="font-size: 0.68rem; color: var(--muted, #78716c);">Burden Tier</div>
+                    <div><span class="swatch" style="background:#a3312a;"></span>High</div>
+                    <div><span class="swatch" style="background:#b9740f;"></span>Moderate</div>
+                    <div><span class="swatch" style="background:#4d7c5f;"></span>Low</div>
                     <div class="text-muted mt-1" style="font-size: 0.65rem; max-width: 200px;">
                         Cases per 10,000 people where population is known (50+ is high, 15+ is moderate), otherwise raw case count.
                         {% if data_year_range %}Totals are cumulative across {{ data_year_range }}, not one year.{% endif %}
@@ -248,8 +248,8 @@ document.addEventListener("DOMContentLoaded", function () {
             datasets: [{
                 label: 'Confirmed Cases (RDT)',
                 data: {{ trend_cases_json|safe }},
-                borderColor: '#dc3545',
-                backgroundColor: 'rgba(220, 53, 69, 0.06)',
+                borderColor: '#a3312a',
+                backgroundColor: 'rgba(163, 49, 42, 0.06)',
                 borderWidth: 3,
                 tension: 0.3,
                 fill: true
@@ -267,7 +267,7 @@ document.addEventListener("DOMContentLoaded", function () {
             onHover: trendIsAnnual ? function (evt, elements) {
                 evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
             } : undefined,
-            plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: '600' } } } },
+            plugins: { legend: { position: 'top', labels: { font: { family: 'IBM Plex Sans', weight: '600' } } } },
             scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
         }
     });
@@ -300,7 +300,7 @@ document.addEventListener("DOMContentLoaded", function () {
             datasets: [{
                 label: 'Confirmed Cases (RDT)',
                 data: {{ top_districts_cases_json|safe }},
-                backgroundColor: 'rgba(13, 110, 253, 0.65)',
+                backgroundColor: 'rgba(14, 110, 100, 0.65)',
                 borderRadius: 4
             }]
         },
