@@ -51,6 +51,12 @@
             color: var(--ink); background-color: var(--canvas); font-family: 'IBM Plex Sans', sans-serif !important;
             font-variant-numeric: tabular-nums; /* digits line up in tables/stat tiles instead of drifting */
         }
+        /* Every page title is a bare <h2 class="fw-bold text-dark m-0">. Left alone,
+           that inherits Bootstrap's stock h2 size (~2rem) — much larger than anything
+           else in this design system (card headers ~1.25rem, KPI figures 2.1rem but
+           tightly tracked) and it read as an oversized, mismatched font next to the
+           rest of the page. Pin it to a deliberate size instead of the default. */
+        h2 { font-size: 1.45rem; letter-spacing: -0.3px; }
         .layout-wrapper { display: flex; min-height: 100vh; }
         .dashboard-sidebar {
             width: 230px; flex: 0 0 230px; padding: 20px 12px; background: var(--sidebar-gradient);
