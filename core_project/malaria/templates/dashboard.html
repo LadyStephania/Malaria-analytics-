@@ -53,113 +53,84 @@
 </div>
 {% else %}
 
-<div class="row g-4 mb-4">
-    <!-- Left: at-a-glance numbers -->
-    <div class="col-12 col-lg-3">
-        <div class="premium-card kpi-panel h-100 mb-0">
-            <div class="kpi-block">
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
-                <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt|intcomma }}</div>
-                <span class="text-success small fw-semibold">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
-            </div>
-            <div class="kpi-block" title="Confirmed cases ÷ number tested by RDT — a standard malaria surveillance indicator, separate from the population-based incidence figures elsewhere on this page.">
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate <i class="bi bi-question-circle text-muted" style="font-size: 0.65rem;"></i></span>
-                <div class="fw-bold text-dark kpi-value">{% if positivity_rate is not None %}{{ positivity_rate }}%{% else %}N/A{% endif %}</div>
-                <span class="text-muted small">{% if total_tested %}{{ confirmed_rdt|intcomma }} of {{ total_tested|intcomma }} tested{% else %}No testing volume on file{% endif %}</span>
-            </div>
-            <div class="kpi-block">
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts Reporting</span>
-                <div class="fw-bold text-dark kpi-value">{{ districts_reporting }}</div>
-                <span class="text-muted small">out of {{ total_districts }} nationwide</span>
-            </div>
-            <div class="kpi-block">
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest-Burden District</span>
-                <div class="fw-bold text-danger" style="font-size: 1.4rem; line-height: 1.2;">{{ alert_district }}</div>
-                <span class="text-danger small fw-semibold">Most confirmed cases{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
-            </div>
-            <div class="kpi-block mt-auto pt-3 border-top">
-                <span class="text-muted small d-block">Latest report: {{ latest_date }}</span>
-                {% if data_year_range %}<span class="text-muted small d-block">Reporting history: {{ data_year_range }}</span>{% endif %}
-            </div>
+<!-- At-a-glance numbers: a strip of stat cards above the chart grid, matching
+     the reference layout's row order rather than a tall side column. -->
+<div class="row row-cols-2 row-cols-md-4 g-4 mb-4">
+    <div class="col">
+        <div class="premium-card h-100 mb-0" style="border-top: 4px solid var(--primary);">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
+            <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt|intcomma }}</div>
+            <span class="text-success small fw-semibold">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
         </div>
     </div>
-
-    <!-- Right: charts -->
-    <div class="col-12 col-lg-9">
-        <div class="row g-4">
-            <div class="col-12 col-xl-7">
-                <div class="premium-card h-100 mb-0">
-                    <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
-                        <i class="bi bi-graph-up text-primary"></i> {{ trend_title }}
-                    </h5>
-                    <div style="position: relative; height: 240px; width: 100%;">
-                        <canvas id="caseTrendChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-xl-5">
-                <div class="premium-card h-100 mb-0">
-                    <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
-                        <i class="bi bi-pie-chart-fill text-primary"></i> Districts by Burden Tier
-                    </h5>
-                    <div style="position: relative; height: 190px; width: 100%;">
-                        <canvas id="burdenTierChart"></canvas>
-                    </div>
-                    <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
-                        {% for tier in burden_tier_summary %}
-                        <span class="small text-muted"><span class="rounded-circle d-inline-block me-1" style="width:9px; height:9px; background-color:{{ tier.color }};"></span>{{ tier.label }}: {{ tier.count }}</span>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
+    <div class="col">
+        <div class="premium-card h-100 mb-0" title="Confirmed cases ÷ number tested by RDT — a standard malaria surveillance indicator, separate from the population-based incidence figures elsewhere on this page.">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate <i class="bi bi-question-circle text-muted" style="font-size: 0.65rem;"></i></span>
+            <div class="fw-bold text-dark kpi-value">{% if positivity_rate is not None %}{{ positivity_rate }}%{% else %}N/A{% endif %}</div>
+            <span class="text-muted small">{% if total_tested %}{{ confirmed_rdt|intcomma }} of {{ total_tested|intcomma }} tested{% else %}No testing volume on file{% endif %}</span>
         </div>
-
-        <div class="row g-4 mt-1">
-            <div class="col-12 col-xl-6">
-                <div class="premium-card h-100 mb-0">
-                    <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
-                        <i class="bi bi-bar-chart-line-fill text-primary"></i> Top Districts by Rate
-                    </h5>
-                    <div style="position: relative; height: 240px; width: 100%;">
-                        <canvas id="topDistrictsChart"></canvas>
-                    </div>
-                    <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">Click a bar to open that district in Decision Support.</p>
-                </div>
-            </div>
-            <div class="col-12 col-xl-6">
-                <div class="premium-card h-100 mb-0 p-0 overflow-hidden">
-                    <div class="p-3 bg-light border-bottom">
-                        <div class="fw-bold text-dark d-flex align-items-center gap-2">
-                            <i class="bi bi-map text-primary"></i> Cases by Province
-                        </div>
-                        {% if data_year_range %}<span class="text-muted" style="font-size: 0.72rem;">Cumulative, {{ data_year_range }} &mdash; see the Dashboard's Year-over-Year chart for a single year, by province.</span>{% endif %}
-                    </div>
-                    <div class="table-responsive" style="max-height: 260px;">
-                        <table class="table align-middle m-0" style="font-size: 0.85rem;">
-                            <thead class="table-light">
-                                <tr><th>Province</th><th class="text-end">Population</th><th class="text-end">Confirmed Cases</th></tr>
-                            </thead>
-                            <tbody>
-                                {% for row in province_rollup %}
-                                <tr>
-                                    <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
-                                    <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
-                                    <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    </div>
+    <div class="col">
+        <div class="premium-card h-100 mb-0">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts Reporting</span>
+            <div class="fw-bold text-dark kpi-value">{{ districts_reporting }}</div>
+            <span class="text-muted small">out of {{ total_districts }} nationwide</span>
+        </div>
+    </div>
+    <div class="col">
+        <div class="premium-card h-100 mb-0">
+            <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest-Burden District</span>
+            <div class="fw-bold text-danger" style="font-size: 1.4rem; line-height: 1.2;">{{ alert_district }}</div>
+            <span class="text-danger small fw-semibold">Most confirmed cases{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
         </div>
     </div>
 </div>
 
-{% if yearly_stats %}
-<!-- Statistics: year-by-year national totals, side by side -->
-<div class="row g-4 mt-1">
-    <div class="col-12">
+<!-- Three charts across, same order as the reference: distribution donut,
+     trend line, ranked bar chart. -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 mb-0">
+            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-pie-chart-fill text-primary"></i> Districts by Burden Tier
+            </h5>
+            <div style="position: relative; height: 190px; width: 100%;">
+                <canvas id="burdenTierChart"></canvas>
+            </div>
+            <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
+                {% for tier in burden_tier_summary %}
+                <span class="small text-muted"><span class="rounded-circle d-inline-block me-1" style="width:9px; height:9px; background-color:{{ tier.color }};"></span>{{ tier.label }}: {{ tier.count }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 mb-0">
+            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-graph-up text-primary"></i> {{ trend_title }}
+            </h5>
+            <div style="position: relative; height: 240px; width: 100%;">
+                <canvas id="caseTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="premium-card h-100 mb-0">
+            <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-bar-chart-line-fill text-primary"></i> Top Districts by Rate
+            </h5>
+            <div style="position: relative; height: 240px; width: 100%;">
+                <canvas id="topDistrictsChart"></canvas>
+            </div>
+            <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;">Click a bar to open that district in Decision Support.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics + Map side by side, same row as the reference's bottom row. -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-lg-7">
+        {% if yearly_stats %}
         <div class="premium-card p-0 overflow-hidden mb-0">
             <div class="p-3 bg-light border-bottom fw-bold text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-table text-primary"></i> Statistics
@@ -200,19 +171,15 @@
                 </table>
             </div>
         </div>
+        {% endif %}
     </div>
-</div>
-{% endif %}
-
-<!-- Map -->
-<div class="row g-4">
-    <div class="col-12">
-        <div class="premium-card mb-0">
+    <div class="col-12 col-lg-5">
+        <div class="premium-card mb-0 h-100">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-map-fill text-primary"></i> District Risk Map
                 </h5>
-                <span class="badge bg-light text-secondary border p-2 fw-medium">{{ map_points|length }} District{{ map_points|length|pluralize }} Reporting</span>
+                <span class="badge bg-light text-secondary border p-2 fw-medium">{{ map_points|length }} District{{ map_points|length|pluralize }}</span>
             </div>
             <div class="map-wrap">
                 <div id="malariaHotspotMap"></div>
@@ -227,6 +194,37 @@
                         otherwise raw case count. {% if data_year_range %}Totals are cumulative across {{ data_year_range }}, not one year.{% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cases by Province: kept below the reference-matched rows above, since
+     the reference layout doesn't have an equivalent slot for it. -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="premium-card mb-0 p-0 overflow-hidden">
+            <div class="p-3 bg-light border-bottom">
+                <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-map text-primary"></i> Cases by Province
+                </div>
+                {% if data_year_range %}<span class="text-muted" style="font-size: 0.72rem;">Cumulative, {{ data_year_range }} &mdash; see the Dashboard's Year-over-Year chart for a single year, by province.</span>{% endif %}
+            </div>
+            <div class="table-responsive" style="max-height: 260px;">
+                <table class="table align-middle m-0" style="font-size: 0.85rem;">
+                    <thead class="table-light">
+                        <tr><th>Province</th><th class="text-end">Population</th><th class="text-end">Confirmed Cases</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in province_rollup %}
+                        <tr>
+                            <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
+                            <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
+                            <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
