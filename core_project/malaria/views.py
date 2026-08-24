@@ -697,20 +697,6 @@ def dashboard_view(request):
         for badge in tier_order
     ]
 
-    # Confirmed cases grouped by province — a coarser, real aggregate for anyone
-    # who wants a provincial view rather than scanning all 116 districts.
-    # Population-adjusted the same way the district hotspot map is: cases per
-    # 10,000 residents, using each province's real summed district population.
-    province_populations = _province_populations()
-    province_rollup = list(
-        IntegratedMalariaData.objects
-        .values('district__province')
-        .annotate(cases=Sum('rdt_confirmations'), districts=Count('district_id', distinct=True))
-        .order_by('-cases')
-    )
-    for row in province_rollup:
-        row['population'] = province_populations.get(row['district__province'], 0)
-
     # Top 8 districts by the same rank the hotspot list uses, for a compact bar
     # chart alongside it.
     top_districts = map_points[:8]
@@ -797,9 +783,6 @@ def dashboard_view(request):
         'has_data': has_data,
         'latest_date': totals['latest_date'],
         'data_year_range': data_year_range,
-        'map_points': map_points,
-        'map_points_json': json.dumps(map_points),
-        'data_year_range_json': json.dumps(data_year_range),
         'trend_labels_json': json.dumps(trend_labels),
         'trend_cases_json': json.dumps([r['cases'] or 0 for r in trend_rows]),
         'trend_title': trend_title,
@@ -808,11 +791,7 @@ def dashboard_view(request):
         'burden_tier_labels_json': json.dumps([t['label'] for t in burden_tier_summary]),
         'burden_tier_counts_json': json.dumps([t['count'] for t in burden_tier_summary]),
         'burden_tier_colors_json': json.dumps([t['color'] for t in burden_tier_summary]),
-        'province_rollup': province_rollup,
         'yearly_stats': yearly_stats,
-        'dash_moderate_cutoff': dash_moderate_cutoff,
-        'dash_high_cutoff': dash_high_cutoff,
-        'top_districts': top_districts,
         'top_districts_labels_json': json.dumps([d['name'] for d in top_districts]),
         'top_districts_cases_json': json.dumps([d['cases'] for d in top_districts]),
         'top_districts_ids_json': json.dumps([d['id'] for d in top_districts]),

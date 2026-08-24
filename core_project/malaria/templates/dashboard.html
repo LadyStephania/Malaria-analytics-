@@ -1,18 +1,8 @@
 {% extends 'base.html' %}
 {% load humanize %}
 {% block title %}Dashboard | Malaria Insights{% endblock %}
-{% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
-{% endblock %}
 {% block content %}
 <style>
-    #malariaHotspotMap {
-        width: 100%;
-        height: 380px;
-        border-radius: 12px;
-        border: 1px solid var(--border, #e4ddd2);
-        z-index: 1;
-    }
     .icon-box {
         width: 48px;
         height: 48px;
@@ -23,13 +13,6 @@
         font-size: 1.25rem;
         flex-shrink: 0;
     }
-    .map-wrap { position: relative; }
-    .map-legend {
-        position: absolute; bottom: 12px; left: 12px; z-index: 400;
-        background: rgba(255,255,255,0.95); border: 1px solid var(--border, #e4ddd2);
-        border-radius: 10px; padding: 10px 14px; font-size: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    .map-legend .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
     .kpi-panel { border-top: 4px solid var(--primary); display: flex; flex-direction: column; gap: 28px; }
     .kpi-block .kpi-value { font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.3px; }
 </style>
@@ -40,7 +23,7 @@
         <p class="text-muted small mb-0">Signed in as <strong class="text-primary">{{ active_user_role }}</strong></p>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
-        <form method="get" class="d-flex align-items-center gap-2" title="Scopes the numbers and trend chart above to one district — the donut, bar chart, province table, and map always stay nationwide, since they compare districts against each other.">
+        <form method="get" class="d-flex align-items-center gap-2" title="Scopes the numbers and trend chart above to one district — the donut and bar chart always stay nationwide, since they compare districts against each other.">
             <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">District</label>
             <select name="district_id" class="form-select form-select-sm w-auto rounded-pill px-3" onchange="this.form.submit()">
                 <option value="">All Districts (National)</option>
@@ -186,116 +169,15 @@
 </div>
 {% endif %}
 
-<!-- District Risk Map: its own row, no longer paired with the Statistics table. -->
-<div class="row g-4 mb-4">
-    <div class="col-12">
-        <div class="premium-card mb-0">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-map-fill text-primary"></i> District Risk Map
-                </h5>
-                <span class="badge bg-light text-secondary border p-2 fw-medium">{{ map_points|length }} District{{ map_points|length|pluralize }}</span>
-            </div>
-            <div class="map-wrap">
-                <div id="malariaHotspotMap"></div>
-                <div class="map-legend">
-                    <div class="fw-bold text-uppercase mb-1" style="font-size: 0.68rem; color: var(--muted, #78716c);">Burden Tier</div>
-                    <div><span class="swatch" style="background:#a3312a;"></span>High</div>
-                    <div><span class="swatch" style="background:#b9740f;"></span>Moderate</div>
-                    <div><span class="swatch" style="background:#4d7c5f;"></span>Low</div>
-                    <div class="text-muted mt-1" style="font-size: 0.65rem; max-width: 200px;">
-                        Cases per 10,000 people where population is known, split into thirds by this page's own data
-                        {% if dash_high_cutoff %}(high is {{ dash_high_cutoff }}+, moderate is {{ dash_moderate_cutoff }}+){% endif %},
-                        otherwise raw case count. {% if data_year_range %}Totals are cumulative across {{ data_year_range }}, not one year.{% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Cases by Province: kept below the reference-matched rows above, since
-     the reference layout doesn't have an equivalent slot for it. -->
-<div class="row g-4 mb-4">
-    <div class="col-12">
-        <div class="premium-card mb-0 p-0 overflow-hidden">
-            <div class="p-3 bg-light border-bottom">
-                <div class="fw-bold text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-map text-primary"></i> Cases by Province
-                </div>
-                {% if data_year_range %}<span class="text-muted" style="font-size: 0.72rem;">Cumulative, {{ data_year_range }} &mdash; see the Dashboard's Year-over-Year chart for a single year, by province.</span>{% endif %}
-            </div>
-            <div class="table-responsive" style="max-height: 260px;">
-                <table class="table align-middle m-0" style="font-size: 0.85rem;">
-                    <thead class="table-light">
-                        <tr><th>Province</th><th class="text-end">Population</th><th class="text-end">Confirmed Cases</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for row in province_rollup %}
-                        <tr>
-                            <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
-                            <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
-                            <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 {% if has_data %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const decisionSupportUrl = "{% url 'decision' %}";
-
-    // ---- Leaflet Hotspot Map ----
-    const mapPoints = {{ map_points_json|safe }};
-    const dataYearRange = {{ data_year_range_json|safe }};
-    const map = L.map('malariaHotspotMap').setView([-13.13, 27.85], 6); // Zambia centroid
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    mapPoints.forEach(function (point) {
-        if (point.lat == null || point.lon == null) return;
-        // Radius grows with sqrt(value) so circle AREA (not radius) scales with
-        // incidence — the standard cartographic approach. The old constants
-        // (8-30px, sqrt(x)*3) hit their 30px cap for almost every district once
-        // real population data made incidence rates run into the hundreds, so
-        // nearly every marker rendered at the same oversized max size, burying
-        // the base map's own place labels underneath them. 5-18px keeps markers
-        // readable and still visibly different from each other.
-        const sizeMetric = point.incidence_per_10k != null ? point.incidence_per_10k : point.cases;
-        const radius = Math.max(5, Math.min(18, 5 + Math.sqrt(sizeMetric || 0) * 0.375));
-        const incidenceLine = point.incidence_per_10k != null
-            ? 'Incidence: ' + point.incidence_per_10k + ' per 10,000 (pop. ' + point.population.toLocaleString() + ')<br>'
-            : 'Population not on file (raw count shown)<br>';
-        const rangeLine = dataYearRange ? ' (' + dataYearRange + ' cumulative)' : '';
-        L.circleMarker([point.lat, point.lon], {
-            radius: radius,
-            color: point.color,
-            fillColor: point.color,
-            fillOpacity: 0.45,
-            weight: 1.5
-        })
-        .addTo(map)
-        .bindPopup(
-            '<strong>' + point.name + '</strong><br>' +
-            'Confirmed (RDT): ' + point.cases + rangeLine + '<br>' +
-            incidenceLine +
-            'Risk tier: ' + point.risk + '<br>' +
-            '<a href="' + decisionSupportUrl + '?district_id=' + point.id + '">View full history &rarr;</a>'
-        );
-    });
 
     // ---- Case Trend Chart ----
     // Clicking a point only tells us which YEAR was clicked, not which district —
