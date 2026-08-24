@@ -106,6 +106,12 @@
             <div style="position: relative; height: 240px; width: 100%;">
                 <canvas id="caseTrendChart"></canvas>
             </div>
+            {% if predicted_next_cases is not None %}
+            <p class="text-muted mt-2 mb-0" style="font-size: 0.72rem;" title="Persistence forecast: the same method validated in Analytics as the most accurate of everything tried there (a Random Forest and Linear Regression both did worse). Next period is predicted to look like the last one on file.">
+                <span class="d-inline-block me-1" style="width:10px; height:2px; background: repeating-linear-gradient(to right, #78716c 0 4px, transparent 4px 7px); vertical-align: middle;"></span>
+                Dashed point is a prediction, not a report{% if forecast_mae_pct is not None %} &mdash; typically off by about {{ forecast_mae_pct }}%{% endif %}.
+            </p>
+            {% endif %}
         </div>
     </div>
     <div class="col-12 col-md-4">
@@ -187,26 +193,59 @@ document.addEventListener("DOMContentLoaded", function () {
     // point really is a year — the weekly-cadence variant of this chart doesn't
     // map onto that same "/dashboard/year/<year>/" URL).
     const trendIsAnnual = {{ trend_is_annual|yesno:"true,false" }};
-    const trendLabels = {{ trend_labels_json|safe }};
+    const actualLabels = {{ trend_labels_json|safe }};
+    const actualCases = {{ trend_cases_json|safe }};
+    const predictedLabel = {{ predicted_next_label_json|safe }};
+    const predictedCases = {{ predicted_next_cases|default_if_none:"null" }};
+
+    // Append one predicted point after the real ones, rather than a separate
+    // chart, so it reads as "the trend, and what comes next" in one glance.
+    // Two datasets: the solid actual line stops at the last real point (a
+    // trailing null keeps Chart.js from drawing anything past it), and a
+    // dashed "predicted" line carries only the last actual point plus the
+    // one predicted point, so it visually connects to (rather than floats
+    // apart from) the line it's extending.
+    const hasPrediction = predictedCases !== null;
+    const trendLabels = hasPrediction ? actualLabels.concat([predictedLabel]) : actualLabels;
+    const predictedSeries = hasPrediction
+        ? new Array(actualCases.length - 1).fill(null).concat([actualCases[actualCases.length - 1], predictedCases])
+        : [];
+
+    const trendDatasets = [{
+        label: 'Confirmed Cases (RDT)',
+        data: hasPrediction ? actualCases.concat([null]) : actualCases,
+        borderColor: '#a3312a',
+        backgroundColor: 'rgba(163, 49, 42, 0.06)',
+        borderWidth: 3,
+        tension: 0.3,
+        fill: true
+    }];
+    if (hasPrediction) {
+        trendDatasets.push({
+            label: 'Predicted',
+            data: predictedSeries,
+            borderColor: '#78716c',
+            borderDash: [6, 4],
+            borderWidth: 2,
+            pointStyle: 'circle',
+            pointBackgroundColor: '#fffdfb',
+            pointBorderColor: '#78716c',
+            tension: 0,
+            fill: false
+        });
+    }
+
     new Chart(document.getElementById('caseTrendChart').getContext('2d'), {
         type: 'line',
         data: {
             labels: trendLabels,
-            datasets: [{
-                label: 'Confirmed Cases (RDT)',
-                data: {{ trend_cases_json|safe }},
-                borderColor: '#a3312a',
-                backgroundColor: 'rgba(163, 49, 42, 0.06)',
-                borderWidth: 3,
-                tension: 0.3,
-                fill: true
-            }]
+            datasets: trendDatasets
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             onClick: trendIsAnnual ? function (evt, elements) {
-                if (elements.length) {
+                if (elements.length && elements[0].index < actualLabels.length) {
                     const year = trendLabels[elements[0].index];
                     window.location.href = '/dashboard/year/' + year + '/';
                 }

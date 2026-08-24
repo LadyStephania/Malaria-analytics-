@@ -241,6 +241,11 @@
             <span class="text-muted small fw-normal d-block">Case Burden Tier</span>
             <span>{{ burden_label }}</span>
         </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Persistence forecast: predicts the next period will look like the last one on file. Validated in Analytics as the most accurate of everything tried there (a Random Forest and Linear Regression both did worse).">
+            <span class="text-muted small fw-normal d-block">Predicted{% if predicted_next_label %}, {{ predicted_next_label }}{% endif %} <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
+            <span>{% if predicted_next_cases is not None %}{{ predicted_next_cases|intcomma }}{% else %}Not enough history{% endif %}</span>
+            {% if forecast_mae_pct is not None %}<span class="text-muted d-block" style="font-size:0.68rem; font-weight:400;">typically off by about {{ forecast_mae_pct }}%</span>{% endif %}
+        </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;" title="{{ target_label }}'s real population, 2022 census — NOT the '10,000' in the next box, which is just a fixed scale for comparing districts, not a headcount.">
             <span class="text-muted small fw-normal d-block">Population (Real) <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
             <span>{% if selected_district_population %}{{ selected_district_population|floatformat:0|intcomma }}{% else %}Not on file{% endif %}</span>

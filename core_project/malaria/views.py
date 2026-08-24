@@ -115,10 +115,26 @@ def _cadence_label(d, cadence):
     return d.isoformat()
 
 
+def _next_period_date(d, cadence):
+    """The next reporting date after `d`, one cadence step forward — used to
+    label a forward-looking prediction (e.g. "the period after the last one
+    on file")."""
+    if cadence == 'year':
+        return d.replace(year=d.year + 1)
+    elif cadence == 'month':
+        year, month = d.year, d.month + 1
+        if month > 12:
+            year, month = year + 1, 1
+        return d.replace(year=year, month=month)
+    elif cadence == 'week':
+        return d + datetime.timedelta(days=7)
+    return d
+
+
 _RISK_RANK = {'success': 0, 'warning': 1, 'danger': 2}
-# Matches the muted --severity-high/moderate/low tokens in base.html — Leaflet
-# markers and Chart.js can't read CSS custom properties, so the same values
-# have to be duplicated here rather than sourced from one place.
+# Matches the muted --severity-high/moderate/low tokens in base.html — Chart.js
+# can't read CSS custom properties, so the same values have to be duplicated
+# here rather than sourced from one place.
 _BADGE_COLOR = {'danger': '#a3312a', 'warning': '#b9740f', 'success': '#4d7c5f'}
 
 
@@ -768,6 +784,20 @@ def dashboard_view(request):
     if selected_district:
         trend_title += f' — {selected_district.name}'
 
+    # Forward-looking prediction for the period right after the last one on
+    # file: the persistence method (next period = the same as the last one)
+    # already validated in Analytics as the best of everything tried there
+    # (beats a Random Forest and Linear Regression at every lag tested — see
+    # _case_forecast's docstring). Nothing fancier is used here deliberately;
+    # this reuses that same validated method rather than a different,
+    # unvalidated one just because this is a different page.
+    predicted_next_cases = None
+    predicted_next_label = None
+    forecast_accuracy = _case_forecast(1)
+    if trend_rows:
+        predicted_next_cases = trend_rows[-1]['cases'] or 0
+        predicted_next_label = _cadence_label(_next_period_date(trend_rows[-1]['date'], trend_cadence), trend_cadence)
+
     context = {
         'districts_with_data': districts_with_data,
         'selected_district': selected_district,
@@ -787,6 +817,9 @@ def dashboard_view(request):
         'trend_cases_json': json.dumps([r['cases'] or 0 for r in trend_rows]),
         'trend_title': trend_title,
         'trend_is_annual': is_annual_cadence,
+        'predicted_next_cases': predicted_next_cases,
+        'predicted_next_label_json': json.dumps(predicted_next_label),
+        'forecast_mae_pct': forecast_accuracy.get('mae_pct') if forecast_accuracy.get('available') else None,
         'burden_tier_summary': burden_tier_summary,
         'burden_tier_labels_json': json.dumps([t['label'] for t in burden_tier_summary]),
         'burden_tier_counts_json': json.dumps([t['count'] for t in burden_tier_summary]),
@@ -1666,6 +1699,32 @@ def decision_view(request):
     else:
         trend_text, trend_icon, trend_class = f'Unchanged vs prior {_BURDEN_WINDOW}-period window', '▬', 'text-muted'
 
+    # --- Predicted next period: persistence forecast (see _case_forecast's
+    # docstring on the Dashboard for why this method, not a fancier one) ---
+    # applied to this district's single most recent reported period, not the
+    # _BURDEN_WINDOW-period sum above (recent_cases) - a prediction of the
+    # next one period should be compared to a single period, not a rolling
+    # multi-period total.
+    latest_single_period = (
+        IntegratedMalariaData.objects
+        .filter(district=selected_district)
+        .order_by('-date')
+        .values('date', 'rdt_confirmations')
+        .first()
+    )
+    predicted_next_cases = None
+    predicted_next_label = None
+    if latest_single_period:
+        district_cadence = _detect_cadence(
+            IntegratedMalariaData.objects.filter(district=selected_district).values_list('date', flat=True)
+        )
+        predicted_next_cases = latest_single_period['rdt_confirmations']
+        predicted_next_label = _cadence_label(
+            _next_period_date(latest_single_period['date'], district_cadence), district_cadence
+        )
+    forecast_accuracy = _case_forecast(1)
+    forecast_mae_pct = forecast_accuracy.get('mae_pct') if forecast_accuracy.get('available') else None
+
     # --- Forecast: next 14 days for this district's coordinates ---
     forecast_days = _fetch_forecast_days(selected_district.latitude, selected_district.longitude)
     forecast_summary = _forecast_risk_summary(forecast_days)
@@ -1735,6 +1794,9 @@ def decision_view(request):
         'recent_suspected': recent_suspected,
         'recent_tested': recent_tested,
         'positivity_pct': positivity_pct,
+        'predicted_next_cases': predicted_next_cases,
+        'predicted_next_label': predicted_next_label,
+        'forecast_mae_pct': forecast_mae_pct,
         'burden_label': burden_label,
         'incidence_per_10k': incidence,
         'incidence_one_in_n': incidence_one_in_n,
