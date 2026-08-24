@@ -62,7 +62,22 @@
             width: 230px; flex: 0 0 230px; padding: 20px 12px; background: var(--sidebar-gradient);
             display: flex; flex-direction: column;
         }
-        .sidebar-brand { color: #a8998d; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 0 10px 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .sidebar-brand { color: #a8998d; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 0 10px; margin-bottom: 0; }
+        /* Persistent, non-dismissible disclosure that the case data is
+           simulated (supervisor-approved stand-in for real monthly data) —
+           shown twice deliberately: here in the sidebar so it's visible while
+           browsing, and again as a banner in .main-workspace so it can't be
+           missed on mobile where the sidebar is off-canvas by default. */
+        .sim-data-badge {
+            color: var(--severity-moderate, #b9740f); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+            padding: 6px 10px 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);
+            cursor: default;
+        }
+        .sim-data-banner {
+            background: rgba(185, 116, 15, 0.1); border: 1px solid rgba(185, 116, 15, 0.3);
+            color: var(--ink); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; line-height: 1.5;
+        }
+        .sim-data-banner i { color: var(--severity-moderate, #b9740f); }
         .sidebar-menu { list-style: none; padding: 0; margin: 0; }
         .sidebar-item { margin-bottom: 2px; }
         .sidebar-link {
@@ -104,6 +119,9 @@
 <div class="layout-wrapper">
     <aside class="dashboard-sidebar" id="dashboardSidebar">
         <div class="sidebar-brand"><i class="bi bi-activity me-1"></i>MALARIA SURVEILLANCE</div>
+        <div class="sim-data-badge" title="Real case counts at monthly resolution were not available. This dataset is simulated, standing in for real monthly surveillance data with the project supervisor's approval. District coordinates and population figures are still real.">
+            <i class="bi bi-flask me-1"></i>Simulated case data
+        </div>
         <ul class="sidebar-menu">
             <li class="sidebar-item"><a href="{% url 'dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' %}active-tab{% endif %}"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a></li>
             <li class="sidebar-item"><a href="{% url 'analytics' %}" class="sidebar-link {% if request.resolver_match.url_name == 'analytics' %}active-tab{% endif %}"><i class="bi bi-bar-chart-line-fill"></i> Analytics</a></li>
@@ -120,6 +138,12 @@
         </ul>
     </aside>
     <main class="main-workspace">
+        <div class="sim-data-banner">
+            <i class="bi bi-flask me-1"></i>
+            <strong>Simulated data.</strong> Case counts on this page are a simulated monthly dataset, used with the project
+            supervisor's approval as a stand-in for real monthly surveillance data (the real data on file was annual only).
+            District locations and population figures are real (2022 census).
+        </div>
         {% if messages %}
             {% for m in messages %}
             <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'success' }}{% endif %} border-0 p-3 mb-4 rounded-3 small">
