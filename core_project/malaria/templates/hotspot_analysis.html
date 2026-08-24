@@ -51,21 +51,21 @@
     <div class="col-12 col-md-4">
         <div class="premium-card h-100" style="border-left: 4px solid #a3312a;">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Statistically Significant Hot Spots</span>
-            <div class="fw-bold text-danger" style="font-size: 2rem;">{{ hot_spots|length }}</div>
+            <div class="fw-bold text-danger" style="font-size: 1.6rem;">{{ hot_spots|length }}</div>
             <span class="text-muted small">Of {{ n_analyzed }} districts analyzed</span>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="premium-card h-100" style="border-left: 4px solid #3d6b7d;">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Statistically Significant Cold Spots</span>
-            <div class="fw-bold text-info" style="font-size: 2rem;">{{ cold_spots|length }}</div>
+            <div class="fw-bold text-info" style="font-size: 1.6rem;">{{ cold_spots|length }}</div>
             <span class="text-muted small">Of {{ n_analyzed }} districts analyzed</span>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Not Statistically Significant</span>
-            <div class="fw-bold text-dark" style="font-size: 2rem;">{{ n_not_significant }}</div>
+            <div class="fw-bold text-dark" style="font-size: 1.6rem;">{{ n_not_significant }}</div>
             <span class="text-muted small">Of {{ n_analyzed }} districts analyzed</span>
         </div>
     </div>

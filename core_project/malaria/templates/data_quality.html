@@ -28,28 +28,28 @@
     <div class="col-12 col-md-3">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Average Completeness</span>
-            <div class="fw-bold text-dark" style="font-size: 2rem;">{{ avg_completeness }}%</div>
+            <div class="fw-bold text-dark" style="font-size: 1.6rem;">{{ avg_completeness }}%</div>
             <span class="text-muted small">Across {{ total_districts }} districts, {{ n_expected_periods }} {{ cadence_unit }}{{ n_expected_periods|pluralize }} expected</span>
         </div>
     </div>
     <div class="col-12 col-md-3">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts With Gaps</span>
-            <div class="fw-bold text-warning" style="font-size: 2rem;">{{ districts_with_gaps }}</div>
+            <div class="fw-bold text-warning" style="font-size: 1.6rem;">{{ districts_with_gaps }}</div>
             <span class="text-muted small">Missing at least one {{ cadence_unit }}</span>
         </div>
     </div>
     <div class="col-12 col-md-3">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Never Reported</span>
-            <div class="fw-bold text-danger" style="font-size: 2rem;">{{ districts_never_reported }}</div>
+            <div class="fw-bold text-danger" style="font-size: 1.6rem;">{{ districts_never_reported }}</div>
             <span class="text-muted small">Zero records on file</span>
         </div>
     </div>
     <div class="col-12 col-md-3">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Currently Up to Date</span>
-            <div class="fw-bold text-success" style="font-size: 2rem;">{{ districts_current }}</div>
+            <div class="fw-bold text-success" style="font-size: 1.6rem;">{{ districts_current }}</div>
             <span class="text-muted small">Latest report matches the newest {{ cadence_unit }} on file</span>
         </div>
     </div>
