@@ -82,20 +82,63 @@ _RISK_RANK = {'success': 0, 'warning': 1, 'danger': 2}
 _BADGE_COLOR = {'danger': '#a3312a', 'warning': '#b9740f', 'success': '#4d7c5f'}
 
 
-def _classify_burden(cases, population):
+def _tertile_cutoffs(values, fallback=(15.0, 50.0)):
+    """
+    Splits a list of per-district incidence values (cases per 10,000) into
+    thirds and returns (moderate_cutoff, high_cutoff) — the boundaries
+    between the bottom/middle/top third of the CURRENT data, rather than
+    an absolute number picked in advance.
+
+    _classify_burden originally used fixed thresholds (15 / 50 per 10,000,
+    this function's fallback) that happened to work when this app only had
+    a handful of annual records per district. They silently stopped
+    meaning anything once the dataset became monthly: cumulative incidence
+    over 3 years of monthly records blows past "50 = High" for nearly
+    every district, and Zambia's real malaria burden is high enough that
+    even a single recent reporting period can too — so 106/106 districts
+    showed as "High Burden" and the Dashboard's burden-tier chart became a
+    single solid color. A fixed absolute cutoff only stays meaningful if
+    the data's typical scale doesn't change; tertiles always answer "which
+    third is this district in" correctly regardless of that scale, and
+    self-recalibrate the moment the data does change again (e.g. once real
+    monthly NMEC data eventually replaces this simulated dataset).
+
+    Falls back to the original fixed thresholds when there's too little
+    data (under 3 districts) for a three-way split to mean anything.
+    """
+    values = sorted(v for v in values if v is not None)
+    if len(values) < 3:
+        return fallback
+    n = len(values)
+
+    def pct(p):
+        idx = min(n - 1, max(0, round(p * (n - 1))))
+        return values[idx]
+
+    return pct(1 / 3), pct(2 / 3)
+
+
+def _classify_burden(cases, population, moderate_cutoff=15.0, high_cutoff=50.0):
     """
     Population-adjusted case-burden classifier — cases per 10,000 residents,
     cumulative over the uploaded reporting period, when population is known;
     falls back to raw case-count thresholds otherwise. Shared by the Dashboard
     hotspot map and Decision Support so the two views always agree.
+
+    moderate_cutoff/high_cutoff default to this app's original fixed
+    thresholds, but any caller classifying many districts in the same pass
+    should compute data-relative cutoffs with _tertile_cutoffs and pass
+    them in instead — see that function's docstring for why a fixed
+    absolute number doesn't hold up.
+
     Returns (label, badge, incidence_per_10k_or_None).
     """
     population = population or 0
     if population > 0:
         incidence = round((cases / population) * 10000, 1)
-        if incidence >= 50:
+        if incidence >= high_cutoff:
             return 'High Burden', 'danger', incidence
-        elif incidence >= 15:
+        elif incidence >= moderate_cutoff:
             return 'Moderate Burden', 'warning', incidence
         return 'Low Burden', 'success', incidence
     if cases >= 200:
@@ -523,7 +566,7 @@ def dashboard_view(request):
 
     # Roll up every district that has records, for both the "critical node"
     # headline stat and the Leaflet hotspot map.
-    district_rollup = (
+    district_rollup = list(
         IntegratedMalariaData.objects
         .values('district_id', 'district__name', 'district__latitude', 'district__longitude', 'district__population')
         .annotate(
@@ -532,6 +575,14 @@ def dashboard_view(request):
             avg_temp=Avg('avg_temperature_c'),
         )
     )
+
+    # Burden-tier cutoffs calibrated to THIS page's own metric (cumulative
+    # incidence over every record on file) — see _tertile_cutoffs for why a
+    # fixed absolute cutoff doesn't hold up across different data cadences.
+    dash_moderate_cutoff, dash_high_cutoff = _tertile_cutoffs([
+        round((row['cases'] or 0) / row['district__population'] * 10000, 1)
+        for row in district_rollup if row['district__population']
+    ])
 
     # Hotspot tiers are population-adjusted (cases per 10,000 residents, cumulative
     # over the uploaded reporting period) whenever a district's population is known —
@@ -543,7 +594,7 @@ def dashboard_view(request):
         cases = row['cases'] or 0
         population = row['district__population'] or 0
 
-        risk_label, badge, incidence = _classify_burden(cases, population)
+        risk_label, badge, incidence = _classify_burden(cases, population, dash_moderate_cutoff, dash_high_cutoff)
         marker_color = _BADGE_COLOR[badge]
 
         point = {
@@ -684,6 +735,8 @@ def dashboard_view(request):
         'burden_tier_colors_json': json.dumps([t['color'] for t in burden_tier_summary]),
         'province_rollup': province_rollup,
         'yearly_stats': yearly_stats,
+        'dash_moderate_cutoff': dash_moderate_cutoff,
+        'dash_high_cutoff': dash_high_cutoff,
         'top_districts': top_districts,
         'top_districts_labels_json': json.dumps([d['name'] for d in top_districts]),
         'top_districts_cases_json': json.dumps([d['cases'] for d in top_districts]),
@@ -1317,25 +1370,18 @@ def data_quality_view(request):
 _BURDEN_WINDOW = 4
 
 
-def _recent_case_burden(district):
+def _recent_case_window(district):
     """
-    Case burden over a rolling window of the district's most recent reporting
-    periods (not a single latest date — one week's count is too small/noisy to
-    classify against the same incidence thresholds the Dashboard uses on
-    cumulative totals). Returns (recent_cases, prior_cases_or_None, reference_date,
-    current_window_len, burden_label, burden_badge, incidence_or_None,
-    prior_window_len).
+    Raw half of _recent_case_burden — the rolling-window case counts, with
+    no classification. Split out so a batch caller (the priority queue) can
+    gather every district's numbers first, derive data-relative burden
+    thresholds from the whole batch (_tertile_cutoffs), and only then
+    classify any one district — rather than classifying each district
+    against a threshold computed before every district's number was known.
 
-    prior_cases is only meaningful as a like-for-like comparison against
-    recent_cases when prior_window_len == _BURDEN_WINDOW — with fewer total
-    reporting periods on file than 2x the window (true for every district in
-    an annual dataset with only ~5 years on record), the "prior window" is
-    whatever's left over, which can be as little as a single period. Comparing
-    a genuine _BURDEN_WINDOW-period sum against a partial 1-period leftover and
-    calling both "N-period windows" would wildly overstate the swing (e.g. 4
-    years of cumulative cases vs. a single older year, mislabeled as
-    comparable). Callers must check prior_window_len before trusting the
-    rising/falling comparison, not just whether prior_cases is None.
+    Returns (recent_cases, prior_cases_or_None, reference_date,
+    current_window_len, prior_window_len). See _recent_case_burden for what
+    prior_cases/prior_window_len mean and how to use them safely.
     """
     records = list(
         IntegratedMalariaData.objects
@@ -1349,11 +1395,38 @@ def _recent_case_burden(district):
 
     recent_cases = sum(r['rdt_confirmations'] for r in current_window)
     prior_cases = sum(r['rdt_confirmations'] for r in prior_window) if prior_window else None
+    return recent_cases, prior_cases, reference_date, len(current_window), len(prior_window)
 
-    burden_label, burden_badge, incidence = _classify_burden(recent_cases, district.population)
+
+def _recent_case_burden(district, moderate_cutoff=15.0, high_cutoff=50.0):
+    """
+    Case burden over a rolling window of the district's most recent reporting
+    periods (not a single latest date — one week's count is too small/noisy to
+    classify meaningfully). Returns (recent_cases, prior_cases_or_None,
+    reference_date, current_window_len, burden_label, burden_badge,
+    incidence_or_None, prior_window_len).
+
+    prior_cases is only meaningful as a like-for-like comparison against
+    recent_cases when prior_window_len == _BURDEN_WINDOW — with fewer total
+    reporting periods on file than 2x the window, the "prior window" is
+    whatever's left over, which can be as little as a single period. Comparing
+    a genuine _BURDEN_WINDOW-period sum against a partial 1-period leftover and
+    calling both "N-period windows" would wildly overstate the swing. Callers
+    must check prior_window_len before trusting the rising/falling
+    comparison, not just whether prior_cases is None.
+
+    moderate_cutoff/high_cutoff: see _classify_burden — pass thresholds
+    from _tertile_cutoffs when classifying more than one district in the
+    same request (e.g. decision_view passes the same cutoffs
+    _district_priority_queue used, so the selected district's tier here
+    agrees with its position in that queue) rather than relying on the
+    fixed defaults.
+    """
+    recent_cases, prior_cases, reference_date, window_len, prior_window_len = _recent_case_window(district)
+    burden_label, burden_badge, incidence = _classify_burden(recent_cases, district.population, moderate_cutoff, high_cutoff)
     return (
-        recent_cases, prior_cases, reference_date, len(current_window),
-        burden_label, burden_badge, incidence, len(prior_window),
+        recent_cases, prior_cases, reference_date, window_len,
+        burden_label, burden_badge, incidence, prior_window_len,
     )
 
 
@@ -1392,23 +1465,42 @@ def _district_priority_queue():
     response teams get a single "go here first" list instead of checking
     districts one at a time. Sorted by combined tier severity (critical worst),
     then by confirmed case count as a tiebreaker.
+
+    Returns (queue, moderate_cutoff, high_cutoff) — the cutoffs are exposed
+    so decision_view can classify the single selected district (via
+    _recent_case_burden) against the exact same data-relative thresholds
+    used here, instead of the fixed fallback defaults; otherwise the
+    selected district's "Case Burden Tier" could disagree with its own
+    position in this same queue.
     """
     districts = ZambianDistrict.objects.filter(integratedmalariadata__isnull=False).distinct()
 
-    # Pass 1: case burden is pure DB lookup — cheap, do it sequentially and drop
-    # any district with no reporting history yet.
-    burden_by_id = {}
+    # Pass 1a: raw recent-window case counts — cheap DB lookups, no
+    # classification yet. The thresholds used to classify are derived from
+    # this whole batch (_tertile_cutoffs), so no district can be classified
+    # until every district's number is in.
+    raw_by_id = {}
     for d in districts:
-        recent_cases, _prior_cases, reference_date, _window_len, _burden_label, burden_badge, incidence, _prior_window_len = _recent_case_burden(d)
+        recent_cases, _prior_cases, reference_date, _window_len, _prior_window_len = _recent_case_window(d)
         if reference_date is None:
             continue
-        burden_by_id[d.id] = {
+        incidence = round(recent_cases / d.population * 10000, 1) if d.population else None
+        raw_by_id[d.id] = {
             'district': d,
             'recent_cases': recent_cases,
             'reference_date': reference_date,
-            'burden_badge': burden_badge,
             'incidence': incidence,
         }
+
+    moderate_cutoff, high_cutoff = _tertile_cutoffs([info['incidence'] for info in raw_by_id.values()])
+
+    # Pass 1b: now classify, with thresholds calibrated to this batch.
+    burden_by_id = {}
+    for district_id, info in raw_by_id.items():
+        _label, burden_badge, _incidence = _classify_burden(
+            info['recent_cases'], info['district'].population, moderate_cutoff, high_cutoff
+        )
+        burden_by_id[district_id] = {**info, 'burden_badge': burden_badge}
 
     # Pass 2: the forecast fetch is the slow part — one network round-trip per
     # distinct location (each individually cached 6h, see _fetch_forecast_days).
@@ -1458,7 +1550,7 @@ def _district_priority_queue():
     # factor rank of 2 but shouldn't tie arbitrarily against each other.
     tier_order = {'critical': 0, 'active': 1, 'preemptive': 2, 'watch': 3, 'stable': 4}
     queue.sort(key=lambda q: (tier_order[q['tier']], -q['cases']))
-    return queue
+    return queue, moderate_cutoff, high_cutoff
 
 
 @login_required
@@ -1469,7 +1561,7 @@ def decision_view(request):
         .distinct()
         .order_by('name')
     )
-    priority_queue = _district_priority_queue()
+    priority_queue, burden_moderate_cutoff, burden_high_cutoff = _district_priority_queue()
 
     district_id = request.GET.get('district_id') or None
     selected_district = None
@@ -1500,7 +1592,9 @@ def decision_view(request):
     # Case burden over a rolling window (not a single latest date — see
     # _recent_case_burden's docstring); same helper the priority queue uses above,
     # so the queue and this detail panel always agree on the same district's tier.
-    recent_cases, prior_cases, reference_date, window_len, burden_label, burden_badge, incidence, prior_window_len = _recent_case_burden(selected_district)
+    recent_cases, prior_cases, reference_date, window_len, burden_label, burden_badge, incidence, prior_window_len = _recent_case_burden(
+        selected_district, burden_moderate_cutoff, burden_high_cutoff
+    )
     burden_rank = _RISK_RANK[burden_badge]
     recent_suspected, recent_tested, positivity_pct = _recent_testing_totals(selected_district)
     # "553.6 per 10,000" as "roughly 1 in 18 people" — same rate, easier to say
