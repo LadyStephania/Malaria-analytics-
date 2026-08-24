@@ -66,7 +66,10 @@ class IntegratedMalariaData(models.Model):
     
     # Clinical Metrics from NMEC records
     rdt_confirmations = models.IntegerField(default=0)
-    
+    suspected_cases = models.IntegerField(default=0, help_text="Suspected cases before testing, if reported.")
+    rdt_tested = models.IntegerField(default=0, help_text="Number tested by RDT, if reported — enables a real positivity rate (rdt_confirmations / rdt_tested).")
+    microscopy_tested = models.IntegerField(default=0, help_text="Number tested by microscopy, if reported.")
+
     # Meteorological Metrics from Open-Meteo API data stream
     rainfall_mm = models.FloatField(default=0.0)
     avg_temperature_c = models.FloatField(default=25.0)

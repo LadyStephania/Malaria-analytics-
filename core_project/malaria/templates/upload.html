@@ -25,9 +25,9 @@
 
     <div class="mt-3 small text-muted">
         Expected columns (order-independent, matched by keyword): <code>district</code>, <code>date</code> (YYYY-MM-DD),
-        <code>epi_week</code>, <code>reporting_year</code>, <code>rdt_confirmations</code>.
-        Optionally include a <code>population</code> column — when present, the Dashboard's hotspot map switches from
-        raw case counts to population-adjusted incidence (cases per 10,000 residents) for that district.
+        <code>epi_week</code>, <code>reporting_year</code>, <code>rdt_confirmations</code> (or <code>confirmed_cases</code>).
+        Optionally include <code>population</code> (switches the hotspot map from raw case counts to population-adjusted
+        incidence), <code>suspected_cases</code>, <code>rdt_tested</code>, and <code>microscopy_tested</code>.
     </div>
 </div>
 {% endblock %}

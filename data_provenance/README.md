@@ -28,9 +28,19 @@ sidebar and a banner at the top of every page — not just here.
    (`Itezhi-Tezhi`→`Itezhi-tezhi`, `Mushindamo`→`Mushindano`,
    `Shang'ombo`→`Shangombo`), and writes a CSV in the exact shape the app's
    own Upload Data page expects (`district, date, epi_week, reporting_year,
-   rdt_confirmations`), with `date` set to the 1st of each month.
+   rdt_confirmations, suspected_cases, rdt_tested, microscopy_tested`), with
+   `date` set to the 1st of each month.
 2. That CSV was loaded through the app's real upload pipeline (same code
-   path as the Upload Data page), not a separate import route.
+   path as the Upload Data page), not a separate import route. It was run
+   twice: once for the core fields, and again after `suspected_cases`,
+   `rdt_tested`, and `microscopy_tested` were added to the schema — the
+   second pass updated the same 3,816 records in place (matched on
+   district + date) without touching the already-backfilled weather
+   fields, since those aren't part of what the upload form sets.
+
+`rdt_tested` (test volume) alongside `rdt_confirmations` (confirmed cases)
+means a real positivity rate (confirmed ÷ tested) can now be computed per
+district per month — not yet surfaced in the UI, just available in the data.
 3. `fetch_weather.py` — for each of the 106 districts, fetches daily
    rainfall and mean temperature from Open-Meteo's historical archive API
    for the district's real coordinates over 2023-01-01–2025-12-31, then
@@ -55,6 +65,10 @@ combined `date` column) file before:
   before `confirm` matched `Confirmed_Cases` (actual case count), since
   `RDT_Tested` appears earlier in the file's column order.
 
-`preprocess_simulated.py` works around both by producing a file with an
-explicit, unambiguous `date` column and only the intended case-count
-column — the live upload parser itself was left unchanged.
+`preprocess_simulated.py` works around the missing-`date`-column issue by
+producing an explicit `YYYY-MM-01` date. The confirmed-vs-tested column
+ambiguity was fixed properly in the live parser itself (`upload_view` in
+`views.py`) once `rdt_tested` became a real field it needed to detect
+anyway — it now checks column headers for `confirm` across the whole file
+before ever falling back to the more generic `rdt`, instead of just
+matching whichever relevant-looking column happens to appear first.

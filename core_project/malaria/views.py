@@ -1623,19 +1623,40 @@ def upload_view(request):
                         return i
                 return default_idx
 
-            def find_optional_index(keywords):
-                """Like find_index, but returns None (rather than guessing a column) when absent."""
+            def find_optional_index(keywords, exclude=()):
+                """Like find_index, but returns None (rather than guessing a
+                column) when absent. `exclude` lets a header that matches a
+                keyword be skipped if it ALSO matches another substring —
+                needed because 'rdt' alone appears in more than one plausible
+                column name (see find_index_prioritized below)."""
                 for i, h in enumerate(headers):
-                    if any(k in h for k in keywords):
+                    if any(k in h for k in keywords) and not any(x in h for x in exclude):
                         return i
                 return None
+
+            def find_index_prioritized(keyword_groups, default_idx):
+                """Tries each keyword group in priority order, checking every
+                header for that group before moving to the next. A plain
+                find_index would pick whichever header happens to come
+                first in the file — e.g. a file with both 'RDT_Tested' and
+                'Confirmed_Cases' columns would match 'RDT_Tested' first
+                just because it's earlier, even though 'confirm' is the
+                more specific/intended signal for confirmed cases."""
+                for group in keyword_groups:
+                    for i, h in enumerate(headers):
+                        if any(k in h for k in group):
+                            return i
+                return default_idx
 
             dist_idx = find_index(['dist', 'location', 'area'], 0)
             date_idx = find_index(['date', 'time', 'period'], 1)
             week_idx = find_index(['week', 'epi'], 2)
             year_idx = find_index(['year', 'yr'], 3)
-            rdt_idx  = find_index(['rdt', 'confirm', 'pos'], 4)
+            rdt_idx  = find_index_prioritized([['confirm'], ['pos'], ['rdt']], 4)
             pop_idx  = find_optional_index(['pop'])  # optional — enables incidence-rate hotspot tiers
+            suspected_idx  = find_optional_index(['suspect'])  # optional
+            rdt_tested_idx = find_optional_index(['test'], exclude=['microscop'])  # optional — 'RDT_Tested', not 'Microscopy_Tested'
+            microscopy_idx = find_optional_index(['microscop'])  # optional
 
             def safe_int(value_str):
                 try:
@@ -1654,6 +1675,9 @@ def upload_view(request):
                 epi_week      = safe_int(row[week_idx])
                 reporting_year = safe_int(row[year_idx])
                 rdt_positives = safe_int(row[rdt_idx])
+                suspected_cases   = safe_int(row[suspected_idx])  if suspected_idx  is not None and suspected_idx  < len(row) else 0
+                rdt_tested        = safe_int(row[rdt_tested_idx]) if rdt_tested_idx is not None and rdt_tested_idx < len(row) else 0
+                microscopy_tested = safe_int(row[microscopy_idx]) if microscopy_idx is not None and microscopy_idx < len(row) else 0
 
                 if not district_name:
                     continue
@@ -1685,7 +1709,10 @@ def upload_view(request):
                     defaults={
                         'epi_week': epi_week,
                         'reporting_year': reporting_year,
-                        'rdt_confirmations': rdt_positives
+                        'rdt_confirmations': rdt_positives,
+                        'suspected_cases': suspected_cases,
+                        'rdt_tested': rdt_tested,
+                        'microscopy_tested': microscopy_tested,
                     }
                 )
                 if was_created:

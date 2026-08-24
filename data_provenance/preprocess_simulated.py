@@ -16,7 +16,10 @@ NAME_FIX = {
 with open(SRC, encoding='utf-8') as f_in, open(DST, 'w', newline='', encoding='utf-8') as f_out:
     reader = csv.DictReader(f_in)
     writer = csv.writer(f_out)
-    writer.writerow(['district', 'date', 'epi_week', 'reporting_year', 'rdt_confirmations'])
+    writer.writerow([
+        'district', 'date', 'epi_week', 'reporting_year', 'rdt_confirmations',
+        'suspected_cases', 'rdt_tested', 'microscopy_tested',
+    ])
     n = 0
     for row in reader:
         district = row['District'].strip()
@@ -26,7 +29,13 @@ with open(SRC, encoding='utf-8') as f_in, open(DST, 'w', newline='', encoding='u
         date = datetime.date(year, month, 1)
         epi_week = date.isocalendar()[1]
         confirmed = row['Confirmed_Cases'].strip()
-        writer.writerow([district, date.isoformat(), epi_week, year, confirmed])
+        suspected = row['Suspected_Cases'].strip()
+        rdt_tested = row['RDT_Tested'].strip()
+        microscopy_tested = row['Microscopy_Tested'].strip()
+        writer.writerow([
+            district, date.isoformat(), epi_week, year, confirmed,
+            suspected, rdt_tested, microscopy_tested,
+        ])
         n += 1
 
 print(f'Wrote {n} rows to {DST}')
