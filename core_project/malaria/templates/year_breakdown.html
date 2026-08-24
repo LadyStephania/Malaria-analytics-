@@ -57,7 +57,7 @@
                     <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
                     <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
                     <td class="text-end">
-                        {% if row.incidence_pct is not None %}About {{ row.incidence_pct }}%<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
+                        {% if row.incidence_pct is not None %}About {{ row.incidence_pct }}%{% if row.incidence_pct > 100 %}<span class="text-muted d-block" style="font-size:0.65rem;">repeat episodes push this over 100%</span>{% endif %}<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
                     </td>
                 </tr>
                 {% endfor %}
