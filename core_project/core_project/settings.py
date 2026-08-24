@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',  # {% load humanize %} / |intcomma — thousands separators on large case/population counts
 
     'malaria',  # Custom app for malaria data management
 ]

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 {% block title %}{{ year }} by District | Malaria Insights{% endblock %}
 {% block content %}
 <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -20,7 +21,7 @@
     <div class="col-12 col-md-4">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Total Confirmed, {{ year }}</span>
-            <div class="fw-bold text-primary" style="font-size: 2rem;">{{ total_cases }}</div>
+            <div class="fw-bold text-primary" style="font-size: 2rem;">{{ total_cases|intcomma }}</div>
             <span class="text-muted small">Across {{ rows|length }} district{{ rows|length|pluralize }}</span>
         </div>
     </div>
@@ -28,14 +29,14 @@
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Highest, {{ year }}</span>
             <div class="fw-bold text-danger" style="font-size: 1.4rem;">{{ rows.0.district__name }}</div>
-            <span class="text-danger small fw-semibold">{{ rows.0.cases }} confirmed cases</span>
+            <span class="text-danger small fw-semibold">{{ rows.0.cases|intcomma }} confirmed cases</span>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="premium-card h-100">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Lowest, {{ year }}</span>
             <div class="fw-bold text-dark" style="font-size: 1.4rem;">{{ rows.last.district__name }}</div>
-            <span class="text-muted small">{{ rows.last.cases }} confirmed cases</span>
+            <span class="text-muted small">{{ rows.last.cases|intcomma }} confirmed cases</span>
         </div>
     </div>
 </div>
@@ -53,8 +54,8 @@
                 {% for row in province_rows %}
                 <tr>
                     <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
-                    <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
-                    <td class="text-end fw-semibold">{{ row.cases }}</td>
+                    <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
+                    <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
                     <td class="text-end">
                         {% if row.incidence_pct is not None %}About {{ row.incidence_pct }}%<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
                     </td>
@@ -88,7 +89,7 @@
                 <tr>
                     <td class="text-muted fw-bold">{{ forloop.counter }}</td>
                     <td class="fw-semibold text-dark">{{ row.district__name }}</td>
-                    <td class="text-end">{{ row.cases }}</td>
+                    <td class="text-end">{{ row.cases|intcomma }}</td>
                     <td class="text-end">
                         <a href="{% url 'decision' %}?district_id={{ row.district_id }}" class="btn btn-sm btn-outline-primary">Full History</a>
                     </td>

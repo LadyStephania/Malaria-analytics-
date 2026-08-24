@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 {% block title %}Dashboard | Malaria Insights{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
@@ -58,7 +59,7 @@
         <div class="premium-card kpi-panel h-100 mb-0">
             <div class="kpi-block">
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
-                <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt }}</div>
+                <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt|intcomma }}</div>
                 <span class="text-success small fw-semibold">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
             </div>
             <div class="kpi-block">
@@ -137,8 +138,8 @@
                                 {% for row in province_rollup %}
                                 <tr>
                                     <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
-                                    <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
-                                    <td class="text-end fw-semibold">{{ row.cases }}</td>
+                                    <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
+                                    <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
                                     <td class="text-end">
                                         {% if row.incidence_pct is not None %}About {{ row.incidence_pct }}%<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
                                     </td>

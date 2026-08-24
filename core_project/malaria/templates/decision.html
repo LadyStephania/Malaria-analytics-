@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 {% block title %}Decision Support | Malaria Insights{% endblock %}
 {% block content %}
 <style>
@@ -87,7 +88,7 @@
                             {{ row.icon }} {{ row.tier_label }}
                         </span>
                     </td>
-                    <td>{{ row.cases }}</td>
+                    <td>{{ row.cases|intcomma }}</td>
                     <td>{% if row.incidence is not None %}{{ row.incidence }}{% else %}—{% endif %}</td>
                     <td>{% if row.forecast_available %}<i class="bi bi-cloud-check-fill text-success" title="Forecast loaded"></i>{% else %}<i class="bi bi-cloud-slash-fill text-muted" title="Forecast unavailable — burden only"></i>{% endif %}</td>
                     <td class="text-muted">{{ row.date }}</td>
@@ -110,7 +111,7 @@
                             {{ row.icon }} {{ row.tier_label }}
                         </span>
                     </td>
-                    <td>{{ row.cases }}</td>
+                    <td>{{ row.cases|intcomma }}</td>
                     <td>{% if row.incidence is not None %}{{ row.incidence }}{% else %}—{% endif %}</td>
                     <td>{% if row.forecast_available %}<i class="bi bi-cloud-check-fill text-success" title="Forecast loaded"></i>{% else %}<i class="bi bi-cloud-slash-fill text-muted" title="Forecast unavailable — burden only"></i>{% endif %}</td>
                     <td class="text-muted">{{ row.date }}</td>
@@ -228,7 +229,7 @@
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;">
             <span class="text-muted small fw-normal d-block">Confirmed Cases</span>
-            <span>{{ recent_cases }}</span>
+            <span>{{ recent_cases|intcomma }}</span>
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;">
             <span class="text-muted small fw-normal d-block">Case Burden Tier</span>
@@ -236,7 +237,7 @@
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;" title="{{ target_label }}'s real population, 2022 census — NOT the '10,000' in the next box, which is just a fixed scale for comparing districts, not a headcount.">
             <span class="text-muted small fw-normal d-block">Population (Real) <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
-            <span>{% if selected_district_population %}{{ selected_district_population|floatformat:0 }}{% else %}Not on file{% endif %}</span>
+            <span>{% if selected_district_population %}{{ selected_district_population|floatformat:0|intcomma }}{% else %}Not on file{% endif %}</span>
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Confirmed cases ÷ real population (left) — same rate as 'per 10,000', just said as 1-in-N instead. See footnote below.">
             <span class="text-muted small fw-normal d-block">Rate of Infection <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
