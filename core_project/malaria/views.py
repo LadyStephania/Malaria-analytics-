@@ -495,10 +495,19 @@ def _regenerate_backup_codes(user):
 def dashboard_view(request):
     totals = IntegratedMalariaData.objects.aggregate(
         total_confirmed=Sum('rdt_confirmations'),
+        total_suspected=Sum('suspected_cases'),
+        total_tested=Sum('rdt_tested'),
         latest_date=Max('date'),
         earliest_date=Min('date'),
     )
     total_confirmed = totals['total_confirmed'] or 0
+    total_suspected = totals['total_suspected'] or 0
+    total_tested = totals['total_tested'] or 0
+    # Test positivity rate (confirmed / tested) — a standard malaria surveillance
+    # indicator, distinct from the population-based incidence figures elsewhere
+    # on this page. None (not 0%) when no testing volume is on file, since "no
+    # data" and "0% positive" are different claims.
+    positivity_rate = round(total_confirmed / total_tested * 100, 1) if total_tested else None
     has_data = totals['latest_date'] is not None
     districts_reporting = IntegratedMalariaData.objects.values('district_id').distinct().count()
     total_districts = ZambianDistrict.objects.count()
@@ -585,10 +594,7 @@ def dashboard_view(request):
         .order_by('-cases')
     )
     for row in province_rollup:
-        pop = province_populations.get(row['district__province'], 0)
-        row['population'] = pop
-        row['incidence_per_10k'] = round(row['cases'] / pop * 10000, 1) if pop else None
-        row['incidence_pct'] = round(row['cases'] / pop * 100, 2) if pop else None
+        row['population'] = province_populations.get(row['district__province'], 0)
 
     # Top 8 districts by the same rank the hotspot list uses, for a compact bar
     # chart alongside it.
@@ -617,6 +623,9 @@ def dashboard_view(request):
 
     context = {
         'confirmed_rdt': total_confirmed,
+        'total_suspected': total_suspected,
+        'total_tested': total_tested,
+        'positivity_rate': positivity_rate,
         'districts_reporting': districts_reporting,
         'total_districts': total_districts,
         'alert_district': alert_district,
@@ -1309,6 +1318,34 @@ def _recent_case_burden(district):
     )
 
 
+def _recent_testing_totals(district):
+    """
+    Suspected-case and RDT-tested totals over the same rolling window
+    _recent_case_burden uses for recent_cases, so the two figures describe
+    the same period. Kept separate from _recent_case_burden (rather than
+    adding more positional return values to an already 8-value function
+    used at two call sites) since only the single-district detail panel
+    needs this level of detail, not the priority queue.
+
+    Returns (suspected_cases, rdt_tested, positivity_pct_or_None).
+    positivity_pct is confirmed / tested, not confirmed / suspected — the
+    standard test positivity rate definition — and is None when no testing
+    volume is on file for the window (can't divide by zero, and 0 tested
+    isn't the same claim as 0% positive).
+    """
+    records = list(
+        IntegratedMalariaData.objects
+        .filter(district=district)
+        .order_by('-date')
+        .values('rdt_confirmations', 'suspected_cases', 'rdt_tested')[:_BURDEN_WINDOW]
+    )
+    suspected = sum(r['suspected_cases'] for r in records)
+    tested = sum(r['rdt_tested'] for r in records)
+    confirmed = sum(r['rdt_confirmations'] for r in records)
+    positivity_pct = round(confirmed / tested * 100, 1) if tested else None
+    return suspected, tested, positivity_pct
+
+
 def _district_priority_queue():
     """
     Ranks every district that has case data by combined urgency — the SAME
@@ -1426,6 +1463,7 @@ def decision_view(request):
     # so the queue and this detail panel always agree on the same district's tier.
     recent_cases, prior_cases, reference_date, window_len, burden_label, burden_badge, incidence, prior_window_len = _recent_case_burden(selected_district)
     burden_rank = _RISK_RANK[burden_badge]
+    recent_suspected, recent_tested, positivity_pct = _recent_testing_totals(selected_district)
     # "553.6 per 10,000" as "roughly 1 in 18 people" — same rate, easier to say
     # out loud and defend without doing mental unit conversion on the spot.
     incidence_one_in_n = round(10000 / incidence) if incidence else None
@@ -1513,6 +1551,9 @@ def decision_view(request):
         'tier_icon': meta['icon'],
         'checklist': checklist,
         'recent_cases': recent_cases,
+        'recent_suspected': recent_suspected,
+        'recent_tested': recent_tested,
+        'positivity_pct': positivity_pct,
         'burden_label': burden_label,
         'incidence_per_10k': incidence,
         'incidence_one_in_n': incidence_one_in_n,

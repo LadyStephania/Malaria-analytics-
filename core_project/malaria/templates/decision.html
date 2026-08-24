@@ -227,9 +227,15 @@
             <span class="text-muted small fw-normal d-block">Reference Date</span>
             <span>{{ reference_date|default:"N/A" }}</span>
         </div>
-        <div class="meta-list-block flex-fill" style="min-width: 140px;">
-            <span class="text-muted small fw-normal d-block">Confirmed Cases</span>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Suspected cases (before testing) reported over the same {{ window_len }}-period window.">
+            <span class="text-muted small fw-normal d-block">Confirmed Cases <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
             <span>{{ recent_cases|intcomma }}</span>
+            {% if recent_suspected %}<span class="text-muted d-block" style="font-size:0.68rem; font-weight:400;">of {{ recent_suspected|intcomma }} suspected</span>{% endif %}
+        </div>
+        <div class="meta-list-block flex-fill" style="min-width: 140px;" title="Test positivity rate: confirmed cases ÷ number tested by RDT, over the same window as Confirmed Cases. A standard malaria surveillance indicator, separate from the population-based incidence rate below.">
+            <span class="text-muted small fw-normal d-block">Test Positivity Rate <i class="bi bi-question-circle text-muted" style="font-size: 0.7rem;"></i></span>
+            <span>{% if positivity_pct is not None %}{{ positivity_pct }}%{% else %}Not on file{% endif %}</span>
+            {% if recent_tested %}<span class="text-muted d-block" style="font-size:0.68rem; font-weight:400;">{{ recent_cases|intcomma }} of {{ recent_tested|intcomma }} tested</span>{% endif %}
         </div>
         <div class="meta-list-block flex-fill" style="min-width: 140px;">
             <span class="text-muted small fw-normal d-block">Case Burden Tier</span>

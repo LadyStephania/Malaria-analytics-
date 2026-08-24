@@ -62,6 +62,11 @@
                 <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt|intcomma }}</div>
                 <span class="text-success small fw-semibold">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
             </div>
+            <div class="kpi-block" title="Confirmed cases ÷ number tested by RDT — a standard malaria surveillance indicator, separate from the population-based incidence figures elsewhere on this page.">
+                <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Test Positivity Rate <i class="bi bi-question-circle text-muted" style="font-size: 0.65rem;"></i></span>
+                <div class="fw-bold text-dark kpi-value">{% if positivity_rate is not None %}{{ positivity_rate }}%{% else %}N/A{% endif %}</div>
+                <span class="text-muted small">{% if total_tested %}{{ confirmed_rdt|intcomma }} of {{ total_tested|intcomma }} tested{% else %}No testing volume on file{% endif %}</span>
+            </div>
             <div class="kpi-block">
                 <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Districts Reporting</span>
                 <div class="fw-bold text-dark kpi-value">{{ districts_reporting }}</div>
@@ -127,12 +132,12 @@
                         <div class="fw-bold text-dark d-flex align-items-center gap-2">
                             <i class="bi bi-map text-primary"></i> Cases by Province
                         </div>
-                        {% if data_year_range %}<span class="text-muted" style="font-size: 0.72rem;">Cumulative, {{ data_year_range }} &mdash; counts every confirmed episode in that window, so a province where people are re-infected within the same 3 years can pass 100%. See the Dashboard's Year-over-Year chart for a single year, by province.</span>{% endif %}
+                        {% if data_year_range %}<span class="text-muted" style="font-size: 0.72rem;">Cumulative, {{ data_year_range }} &mdash; see the Dashboard's Year-over-Year chart for a single year, by province.</span>{% endif %}
                     </div>
                     <div class="table-responsive" style="max-height: 260px;">
                         <table class="table align-middle m-0" style="font-size: 0.85rem;">
                             <thead class="table-light">
-                                <tr><th>Province</th><th class="text-end">Population</th><th class="text-end">Confirmed Cases</th><th class="text-end">Cases vs. Population</th></tr>
+                                <tr><th>Province</th><th class="text-end">Population</th><th class="text-end">Confirmed Cases</th></tr>
                             </thead>
                             <tbody>
                                 {% for row in province_rollup %}
@@ -140,9 +145,6 @@
                                     <td>{{ row.district__province }}<span class="text-muted d-block" style="font-size:0.7rem;">{{ row.districts }} district{{ row.districts|pluralize }}</span></td>
                                     <td class="text-end text-muted">{% if row.population %}{{ row.population|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</td>
                                     <td class="text-end fw-semibold">{{ row.cases|intcomma }}</td>
-                                    <td class="text-end">
-                                        {% if row.incidence_pct is not None %}About {{ row.incidence_pct }}%{% if row.incidence_pct > 100 %}<span class="text-muted d-block" style="font-size:0.65rem;">repeat episodes push this over 100%</span>{% endif %}<span class="text-muted d-block" style="font-size:0.68rem;">{{ row.incidence_per_10k }} /10k</span>{% else %}&mdash;{% endif %}
-                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
