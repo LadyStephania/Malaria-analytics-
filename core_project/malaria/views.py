@@ -600,6 +600,44 @@ def dashboard_view(request):
     # chart alongside it.
     top_districts = map_points[:8]
 
+    # Year-by-year national totals, for a side-by-side "how has this changed"
+    # table — distinct from the cumulative KPI/trend figures above, which
+    # answer "what's the total so far", not "which direction is it moving".
+    yearly_rows = list(
+        IntegratedMalariaData.objects
+        .values('reporting_year')
+        .annotate(
+            confirmed=Sum('rdt_confirmations'),
+            suspected=Sum('suspected_cases'),
+            tested=Sum('rdt_tested'),
+        )
+        .order_by('reporting_year')
+    )
+    yearly_stats = None
+    if len(yearly_rows) >= 2:
+        first, last = yearly_rows[0], yearly_rows[-1]
+
+        def pct_change(a, b):
+            return round((b - a) / a * 100, 1) if a else None
+
+        yearly_stats = {
+            'years': [r['reporting_year'] for r in yearly_rows],
+            'confirmed': {
+                'values': [r['confirmed'] or 0 for r in yearly_rows],
+                'pct_change': pct_change(first['confirmed'] or 0, last['confirmed'] or 0),
+            },
+            'suspected': {
+                'values': [r['suspected'] or 0 for r in yearly_rows],
+                'pct_change': pct_change(first['suspected'] or 0, last['suspected'] or 0),
+            },
+            'tested': {
+                'values': [r['tested'] or 0 for r in yearly_rows],
+                'pct_change': pct_change(first['tested'] or 0, last['tested'] or 0),
+            },
+            'first_year': first['reporting_year'],
+            'last_year': last['reporting_year'],
+        }
+
     # Last 8 reported epidemiological weeks, oldest -> newest, for the trend strip.
     trend_rows = list(
         IntegratedMalariaData.objects
@@ -645,6 +683,7 @@ def dashboard_view(request):
         'burden_tier_counts_json': json.dumps([t['count'] for t in burden_tier_summary]),
         'burden_tier_colors_json': json.dumps([t['color'] for t in burden_tier_summary]),
         'province_rollup': province_rollup,
+        'yearly_stats': yearly_stats,
         'top_districts': top_districts,
         'top_districts_labels_json': json.dumps([d['name'] for d in top_districts]),
         'top_districts_cases_json': json.dumps([d['cases'] for d in top_districts]),
