@@ -75,6 +75,46 @@ def _classify_risk(rainfall_mm, temp_c):
     return 'Low Stable Risk', 'success'
 
 
+def _detect_cadence(dates):
+    """
+    Classifies a set of reporting dates as 'year', 'month', or 'week' by the
+    typical gap between consecutive dates on file — not by whether epi_week
+    is constant, which only ever distinguished "annual" from "not annual"
+    and silently assumed anything "not annual" was weekly. That held while
+    every non-annual dataset this app had ever actually seen WAS weekly,
+    until a real monthly dataset (~30-day gaps between records) came along
+    and got labeled "by Epi Week" with "W18"-style ticks throughout the
+    Dashboard and Analytics — correct-looking, wrong unit.
+
+    Returns 'year' | 'month' | 'week' | 'period' (fewer than 2 distinct
+    dates to compare, so no gap can be measured — 'period' is a safe
+    generic fallback, still grammatically fine as "N periods earlier").
+    """
+    distinct_dates = sorted(set(dates))
+    if len(distinct_dates) < 2:
+        return 'period'
+    gaps = [(b - a).days for a, b in zip(distinct_dates, distinct_dates[1:])]
+    median_gap = sorted(gaps)[len(gaps) // 2]
+    if median_gap >= 300:
+        return 'year'
+    elif median_gap >= 20:
+        return 'month'
+    elif median_gap >= 5:
+        return 'week'
+    return 'period'
+
+
+def _cadence_label(d, cadence):
+    """Formats one date as an axis/period label appropriate to its cadence."""
+    if cadence == 'year':
+        return str(d.year)
+    elif cadence == 'month':
+        return d.strftime('%b %Y')
+    elif cadence == 'week':
+        return f"W{d.isocalendar()[1]} '{str(d.year)[-2:]}"
+    return d.isoformat()
+
+
 _RISK_RANK = {'success': 0, 'warning': 1, 'danger': 2}
 # Matches the muted --severity-high/moderate/low tokens in base.html — Leaflet
 # markers and Chart.js can't read CSS custom properties, so the same values
@@ -689,26 +729,32 @@ def dashboard_view(request):
             'last_year': last['reporting_year'],
         }
 
-    # Last 8 reported epidemiological weeks, oldest -> newest, for the trend strip.
+    # Last 8 reported periods, oldest -> newest, for the trend strip. Grouped
+    # by the actual date rather than (epi_week, reporting_year) — every
+    # district shares the same reporting date within a period, so date alone
+    # already identifies the period, and it sidesteps any dependence on
+    # epi_week being a meaningful label (see _detect_cadence).
     trend_rows = list(
         IntegratedMalariaData.objects
-        .values('epi_week', 'reporting_year')
+        .values('date')
         .annotate(cases=Sum('rdt_confirmations'))
-        .order_by('-reporting_year', '-epi_week')[:8]
+        .order_by('-date')[:8]
     )
     trend_rows.reverse()
 
     # Some imports (e.g. annual NMEC/DHIS2 exports) carry no real intra-year
-    # granularity — every record lands on the same placeholder epi_week. Labeling
-    # those points "W1, W1, W1..." would imply a weekly resolution the data doesn't
-    # have, so detect that case and label by year instead.
-    is_annual_cadence = len({r['epi_week'] for r in trend_rows}) <= 1
-    if is_annual_cadence:
-        trend_labels = [str(r['reporting_year']) for r in trend_rows]
-        trend_title = 'Year-over-Year Confirmed Case Trend'
-    else:
-        trend_labels = [f"W{r['epi_week']}" for r in trend_rows]
-        trend_title = 'Recent Confirmed Case Trend (by Epi Week)'
+    # granularity. Labeling points by epi_week would either show "W1, W1, W1..."
+    # for annual data, or (this app's real failure mode once) claim "by Epi
+    # Week" for data that's actually monthly — _detect_cadence tells the two
+    # apart, and month, from the actual gap between reporting dates.
+    trend_cadence = _detect_cadence([r['date'] for r in trend_rows])
+    is_annual_cadence = trend_cadence == 'year'
+    trend_labels = [_cadence_label(r['date'], trend_cadence) for r in trend_rows]
+    trend_title = {
+        'year': 'Year-over-Year Confirmed Case Trend',
+        'month': 'Recent Confirmed Case Trend (by Month)',
+        'week': 'Recent Confirmed Case Trend (by Epi Week)',
+    }.get(trend_cadence, 'Recent Confirmed Case Trend')
 
     context = {
         'confirmed_rdt': total_confirmed,
@@ -1082,20 +1128,20 @@ def analytics_view(request):
     weather_mostly_placeholder = not weather_unavailable and placeholder_fraction >= 0.5
 
     # Every reporting period, aggregated nationally, oldest -> newest — the basis
-    # for the overlay chart below.
+    # for the overlay chart below. Grouped by date, not (reporting_year,
+    # epi_week) — see the Dashboard trend's identical grouping for why.
     all_period_rows = list(
         IntegratedMalariaData.objects
-        .values('reporting_year', 'epi_week')
+        .values('date')
         .annotate(driver_avg=Avg(driver_field), cases=Sum('rdt_confirmations'))
-        .order_by('reporting_year', 'epi_week')
+        .order_by('date')
     )
 
-    # This NMEC-style dataset reports annually (every record sits on the epi_week=1
-    # placeholder) rather than weekly — same detection the Dashboard trend uses.
-    # Reuse it so the forecast section below doesn't call a 1-record lag
-    # "1 week" when it's actually a full year.
-    is_annual_cadence = len({r['epi_week'] for r in all_period_rows}) <= 1
-    cadence_unit = 'year' if is_annual_cadence else 'week'
+    # cadence_unit feeds every "N ___ earlier" phrase on this page (the lag
+    # selector, the correlation summary, the forecast section) — see
+    # _detect_cadence for why this can't just assume "not annual = weekly".
+    period_cadence = _detect_cadence([r['date'] for r in all_period_rows])
+    cadence_unit = period_cadence
 
     # The chart must show the SAME lagged relationship the stats above it
     # describe — the driver value from `lag_weeks` periods earlier plotted
@@ -1105,21 +1151,14 @@ def analytics_view(request):
     # Most recent 12 aligned pairs, oldest -> newest.
     weekly_rows = [
         {
-            'epi_week': all_period_rows[i]['epi_week'],
-            'reporting_year': all_period_rows[i]['reporting_year'],
+            'date': all_period_rows[i]['date'],
             'driver_avg': all_period_rows[i - lag_weeks]['driver_avg'],
             'cases': all_period_rows[i]['cases'],
         }
         for i in range(lag_weeks, len(all_period_rows))
     ][-12:]
 
-    # Same annual-vs-weekly label choice the Dashboard trend uses — labeling every
-    # point "W1" when the data is actually annual would make every x-axis tick on
-    # this chart identical and unreadable.
-    if is_annual_cadence:
-        chart_labels = [str(r['reporting_year']) for r in weekly_rows]
-    else:
-        chart_labels = [f"W{r['epi_week']}" for r in weekly_rows]
+    chart_labels = [_cadence_label(r['date'], period_cadence) for r in weekly_rows]
 
     plain_summary = _describe_correlation(r_value, p_value, plain_driver, lag_weeks, cadence_unit, len(lagged_driver))
 
@@ -1310,22 +1349,23 @@ def monthly_estimate_csv_view(request):
 #     period itself. The page says so rather than quietly faking either one.
 @login_required
 def data_quality_view(request):
-    all_periods = list(
-        IntegratedMalariaData.objects.values_list('reporting_year', 'epi_week').distinct()
-    )
-    expected_periods = set(all_periods)
+    # Period identity is the actual reporting date, not (reporting_year,
+    # epi_week) — every district shares the same date within a period, so
+    # date alone already identifies it, without leaning on epi_week for
+    # anything (see _detect_cadence for why that used to go wrong).
+    all_dates = list(IntegratedMalariaData.objects.values_list('date', flat=True).distinct())
+    expected_periods = set(all_dates)
     n_expected = len(expected_periods)
-    is_annual_cadence = len({p[1] for p in all_periods}) <= 1
-    cadence_unit = 'year' if is_annual_cadence else 'week'
+    cadence_unit = _detect_cadence(all_dates)
     latest_period = max(expected_periods) if expected_periods else None
 
-    def period_label(year, week):
-        return str(year) if is_annual_cadence else f"W{week} '{str(year)[-2:]}"
+    def period_label(d):
+        return _cadence_label(d, cadence_unit)
 
     rows = []
-    for d in ZambianDistrict.objects.all().order_by('name'):
+    for district in ZambianDistrict.objects.all().order_by('name'):
         reported_periods = set(
-            IntegratedMalariaData.objects.filter(district=d).values_list('reporting_year', 'epi_week')
+            IntegratedMalariaData.objects.filter(district=district).values_list('date', flat=True)
         )
         missing = sorted(expected_periods - reported_periods)
         completeness = round(len(reported_periods) / n_expected * 100, 1) if n_expected else 0.0
@@ -1333,18 +1373,18 @@ def data_quality_view(request):
         if reported_periods:
             district_latest = max(reported_periods)
             is_current = district_latest == latest_period
-            latest_label = period_label(*district_latest)
+            latest_label = period_label(district_latest)
         else:
             is_current = False
             latest_label = 'Never reported'
 
         rows.append({
-            'id': d.id,
-            'name': d.name,
+            'id': district.id,
+            'name': district.name,
             'reported': len(reported_periods),
             'expected': n_expected,
             'completeness': completeness,
-            'missing_labels': [period_label(y, w) for y, w in missing],
+            'missing_labels': [period_label(p) for p in missing],
             'missing_count': len(missing),
             'is_current': is_current,
             'latest_label': latest_label,
