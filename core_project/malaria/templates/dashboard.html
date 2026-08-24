@@ -39,11 +39,22 @@
         <h2 class="fw-bold text-dark m-0">Surveillance Overview</h2>
         <p class="text-muted small mb-0">Signed in as <strong class="text-primary">{{ active_user_role }}</strong></p>
     </div>
-    {% if latest_date %}
-    <span class="badge bg-light text-secondary border p-2 fw-medium">
-        <i class="bi bi-clock-history me-1"></i>Latest report: {{ latest_date }}{% if data_year_range %} &middot; Data on file: {{ data_year_range }}{% endif %}
-    </span>
-    {% endif %}
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="get" class="d-flex align-items-center gap-2" title="Scopes the numbers and trend chart above to one district — the donut, bar chart, province table, and map always stay nationwide, since they compare districts against each other.">
+            <label class="small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.72rem;">District</label>
+            <select name="district_id" class="form-select form-select-sm w-auto rounded-pill px-3" onchange="this.form.submit()">
+                <option value="">All Districts (National)</option>
+                {% for d in districts_with_data %}
+                <option value="{{ d.id }}" {% if d.id|stringformat:"s" == selected_district_id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% if latest_date %}
+        <span class="badge bg-light text-secondary border p-2 fw-medium">
+            <i class="bi bi-clock-history me-1"></i>Latest report: {{ latest_date }}{% if data_year_range %} &middot; Data on file: {{ data_year_range }}{% endif %}
+        </span>
+        {% endif %}
+    </div>
 </div>
 
 {% if not has_data %}
@@ -60,7 +71,7 @@
         <div class="premium-card h-100 mb-0" style="border-top: 4px solid var(--primary);">
             <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Confirmed Cases (RDT)</span>
             <div class="fw-bold text-primary kpi-value">{{ confirmed_rdt|intcomma }}</div>
-            <span class="text-success small fw-semibold">All districts{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
+            <span class="text-success small fw-semibold">{% if selected_district %}{{ selected_district.name }}{% else %}All districts{% endif %}{% if data_year_range %}, {{ data_year_range }}{% endif %}</span>
         </div>
     </div>
     <div class="col">
@@ -127,10 +138,10 @@
     </div>
 </div>
 
-<!-- Statistics + Map side by side, same row as the reference's bottom row. -->
+{% if yearly_stats %}
+<!-- Statistics: year-by-year national totals, its own row. -->
 <div class="row g-4 mb-4">
-    <div class="col-12 col-lg-7">
-        {% if yearly_stats %}
+    <div class="col-12">
         <div class="premium-card p-0 overflow-hidden mb-0">
             <div class="p-3 bg-light border-bottom fw-bold text-dark d-flex align-items-center gap-2">
                 <i class="bi bi-table text-primary"></i> Statistics
@@ -171,10 +182,14 @@
                 </table>
             </div>
         </div>
-        {% endif %}
     </div>
-    <div class="col-12 col-lg-5">
-        <div class="premium-card mb-0 h-100">
+</div>
+{% endif %}
+
+<!-- District Risk Map: its own row, no longer paired with the Statistics table. -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="premium-card mb-0">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="fw-bold m-0 text-dark d-flex align-items-center gap-2">
                     <i class="bi bi-map-fill text-primary"></i> District Risk Map

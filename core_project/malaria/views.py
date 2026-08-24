@@ -576,7 +576,28 @@ def _regenerate_backup_codes(user):
 # ================= 3. HOME VIEW: OVERVIEW DASHBOARD =================
 @login_required
 def dashboard_view(request):
-    totals = IntegratedMalariaData.objects.aggregate(
+    # Optional district filter — scopes only the KPI cards and trend chart
+    # below (both meaningful for a single district). The donut, bar chart,
+    # province table, and map stay nationwide regardless, since those exist
+    # specifically to compare districts against each other — narrowing them
+    # to one district would leave a donut with one slice, a bar chart with
+    # one bar, and so on.
+    districts_with_data = (
+        ZambianDistrict.objects.filter(integratedmalariadata__isnull=False).distinct().order_by('name')
+    )
+    selected_district = None
+    district_id = request.GET.get('district_id') or None
+    if district_id:
+        try:
+            selected_district = ZambianDistrict.objects.get(pk=district_id)
+        except (ZambianDistrict.DoesNotExist, ValueError):
+            selected_district = None
+
+    scoped_records = IntegratedMalariaData.objects.all()
+    if selected_district:
+        scoped_records = scoped_records.filter(district=selected_district)
+
+    totals = scoped_records.aggregate(
         total_confirmed=Sum('rdt_confirmations'),
         total_suspected=Sum('suspected_cases'),
         total_tested=Sum('rdt_tested'),
@@ -592,6 +613,9 @@ def dashboard_view(request):
     # data" and "0% positive" are different claims.
     positivity_rate = round(total_confirmed / total_tested * 100, 1) if total_tested else None
     has_data = totals['latest_date'] is not None
+    # Deliberately NOT scoped to the selected district — "how many districts are
+    # reporting" and "which district has the most cases" are inherently
+    # nationwide questions, not something a single district has its own version of.
     districts_reporting = IntegratedMalariaData.objects.values('district_id').distinct().count()
     total_districts = ZambianDistrict.objects.count()
 
@@ -735,7 +759,7 @@ def dashboard_view(request):
     # already identifies the period, and it sidesteps any dependence on
     # epi_week being a meaningful label (see _detect_cadence).
     trend_rows = list(
-        IntegratedMalariaData.objects
+        scoped_records
         .values('date')
         .annotate(cases=Sum('rdt_confirmations'))
         .order_by('-date')[:8]
@@ -755,8 +779,13 @@ def dashboard_view(request):
         'month': 'Recent Confirmed Case Trend (by Month)',
         'week': 'Recent Confirmed Case Trend (by Epi Week)',
     }.get(trend_cadence, 'Recent Confirmed Case Trend')
+    if selected_district:
+        trend_title += f' — {selected_district.name}'
 
     context = {
+        'districts_with_data': districts_with_data,
+        'selected_district': selected_district,
+        'selected_district_id': selected_district.id if selected_district else '',
         'confirmed_rdt': total_confirmed,
         'total_suspected': total_suspected,
         'total_tested': total_tested,
